@@ -48,27 +48,24 @@ app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 # Certifique-se de que o 'db' é inicializado aqui ou antes:
 # db.init_app(app) ou db = SQLAlchemy(app)
 
-# AGORA SIM, crie as tabelas com o contexto já com a base de dados configurada:
-app.config.update(
-    SQLALCHEMY_DATABASE_URI=database_url,
-    SQLALCHEMY_TRACK_MODIFICATIONS=False,
-    SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Lax",
-    REMEMBER_COOKIE_HTTPONLY=True,
-    REMEMBER_COOKIE_SAMESITE="Lax",
-    MAX_CONTENT_LENGTH=1 * 1024 * 1024,
-)
-
-# 1. Configurações e Instanciação do SQLAlchemy
+# 1. Inicializa o SQLAlchemy
 db = SQLAlchemy(app)
 
-# 2. AS CLASSES DOS MODELOS DEVEM ESTAR AQUI (ou importadas antes deste ponto):
-# class User(db.Model):
-#     ...
+# 2. DEFINA A CLASSE DO UTILIZADOR AQUI (ACIMA de db.create_all):
+class User(db.Model):
+    __tablename__ = 'user'
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)
+    is_active_account = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# 3. Criação das tabelas (com o contexto ativo)
+# 3. AGORA SIM, crie as tabelas (o SQLAlchemy já conhece a classe User):
 with app.app_context():
     db.create_all()
+
+# 4. Resto das configurações e rotas...
 
 if not app.config["SECRET_KEY"]:
     raise RuntimeError(
