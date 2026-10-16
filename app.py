@@ -280,6 +280,7 @@ def index():
     return redirect(url_for("login"))
 
 @app.route("/register", methods=["GET", "POST"])
+@csrf.exempt
 def register():
     if current_user.is_authenticated:
         return redirect(url_for("index"))
@@ -331,6 +332,7 @@ def register():
 
 
 @app.route("/login", methods=["GET", "POST"])
+@csrf.exempt
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("index"))
@@ -355,6 +357,7 @@ def login():
 
 
 @app.route("/logout", methods=["POST"])
+@csrf.exempt
 @login_required
 def logout():
     logout_user()
