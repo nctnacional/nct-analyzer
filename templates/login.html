@@ -33,9 +33,6 @@
 
         <!-- Formulário de Login -->
         <form class="mt-6 space-y-6" action="{{ url_for('login') }}" method="POST">
-            <!-- Token CSRF exigido pelo Flask -->
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
             <div class="space-y-4">
                 <div>
                     <label for="email" class="block text-xs font-medium text-slate-300 mb-1">E-mail</label>
