@@ -353,18 +353,9 @@ def login():
         return render_template("login.html")
         
     except Exception as e:
-        # Isto vai capturar o erro exato e exibi-lo no site em vez de dar Erro 500
         app.logger.exception("Erro crítico na rota /login")
         flash(f"Erro interno: {str(e)}", "danger")
         return render_template("login.html")
-
-@app.route("/logout", methods=["POST"])
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for("login"))
-
-
 # ==========================================================
 # PAINEL PRINCIPAL
 # ==========================================================
