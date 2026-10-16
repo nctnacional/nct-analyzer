@@ -37,7 +37,6 @@
     <!-- CABEÇALHO SUPERIOR -->
     <header class="h-16 bg-[#0c1220] border-b border-slate-800/80 px-6 flex items-center justify-between shrink-0">
         <div class="flex items-center gap-3">
-            <!-- Logotipo ajustado para largura maior (w-11) para exibir "NCT" perfeitamente -->
             <div class="w-11 h-8 rounded-lg bg-sky-600 flex items-center justify-center font-bold text-white text-xs tracking-wider shadow-lg shadow-sky-600/30">
                 NCT
             </div>
@@ -47,8 +46,9 @@
             </div>
         </div>
 
-        <div class="hidden md:flex items-center gap-2 bg-[#11192e] border border-slate-800 px-4 py-1.5 rounded-full text-xs text-sky-400 font-medium">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <!-- FRASE COM O DOBRO DO TAMANHO ANTERIOR (text-xs / 12px -> text-sm / 14px ou text-base / 16px mais destacada com px-6 py-2) -->
+        <div class="hidden md:flex items-center gap-2.5 bg-[#11192e] border border-slate-800 px-6 py-2 rounded-full text-sm text-sky-400 font-semibold tracking-wide">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
             SEJA SEMPRE MELHOR QUE VOCÊ FOI ONTEM
         </div>
 
@@ -139,117 +139,117 @@
         <main class="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col justify-between">
             
             <div class="space-y-4">
-                <!-- TOPO: CONTROLE DA ANÁLISE + MÉTRICAS -->
+                <!-- TOPO: CONTROLE DA ANÁLISE + MÉTRICAS (ALTURA REDUZIDA EM ~15%) -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     
                     <!-- Controle de Análise -->
-                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-3.5 flex flex-col justify-between">
-                        <div class="flex items-center justify-between mb-1.5">
+                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
+                        <div class="flex items-center justify-between mb-1">
                             <span class="text-[11px] font-medium text-slate-400">Controle da Análise</span>
                             <span id="statusDot" class="w-2 h-2 rounded-full bg-slate-500"></span>
                         </div>
-                        <p id="statusText" class="text-sm font-bold text-white mb-2">Desligada</p>
+                        <p id="statusText" class="text-xs font-bold text-white mb-1">Desligada</p>
                         <div class="flex gap-2">
-                            <button id="start-analysis" type="button" class="flex-1 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold text-[11px] transition">INICIAR</button>
-                            <button id="stop-analysis" type="button" disabled class="flex-1 py-1 rounded-lg bg-rose-600/30 text-slate-400 font-semibold text-[11px] cursor-not-allowed transition">PARAR</button>
+                            <button id="start-analysis" type="button" class="flex-1 py-1 rounded bg-sky-600 hover:bg-sky-500 text-white font-semibold text-[10px] transition">INICIAR</button>
+                            <button id="stop-analysis" type="button" disabled class="flex-1 py-1 rounded bg-rose-600/30 text-slate-400 font-semibold text-[10px] cursor-not-allowed transition">PARAR</button>
                         </div>
                     </div>
 
                     <!-- Status de Execução -->
-                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-3.5 flex flex-col justify-between">
-                        <div class="flex items-center justify-between mb-1.5">
+                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
+                        <div class="flex items-center justify-between mb-1">
                             <span class="text-[11px] font-medium text-slate-400">Execução</span>
-                            <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         </div>
                         <p id="system-analysis-status" class="text-xs font-bold text-white truncate">—</p>
-                        <p class="text-[10px] text-slate-500 mt-1">Última: <span id="lastUpdate">—</span></p>
+                        <p class="text-[9px] text-slate-500">Última: <span id="lastUpdate">—</span></p>
                     </div>
 
                     <!-- Líderes e Seguidores -->
-                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-3.5 flex flex-col justify-between">
-                        <div class="flex items-center justify-between mb-1.5">
+                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
+                        <div class="flex items-center justify-between mb-1">
                             <span class="text-[11px] font-medium text-slate-400">Líderes / Seguidores</span>
-                            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                            <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                         </div>
-                        <p class="text-base font-bold text-white"><span id="metric-leaders">0</span> / <span id="metric-followers">0</span></p>
-                        <p class="text-[10px] text-slate-500 mt-1">Simil: <span id="metric-similarity">80%</span></p>
+                        <p class="text-sm font-bold text-white"><span id="metric-leaders">0</span> / <span id="metric-followers">0</span></p>
+                        <p class="text-[9px] text-slate-500">Simil: <span id="metric-similarity">80%</span></p>
                     </div>
 
                     <!-- Chaves Ativas -->
-                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-3.5 flex flex-col justify-between">
-                        <div class="flex items-center justify-between mb-1.5">
+                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
+                        <div class="flex items-center justify-between mb-1">
                             <span class="text-[11px] font-medium text-slate-400">Chaves Ativas</span>
-                            <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 0121 9z"></path></svg>
+                            <svg class="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 0121 9z"></path></svg>
                         </div>
-                        <p id="metric-keys" class="text-base font-bold text-white">0 / 4</p>
-                        <p class="text-[10px] text-slate-500 mt-1">APIs configuradas</p>
+                        <p class="text-sm font-bold text-white">0 / 4</p>
+                        <p class="text-[9px] text-slate-500">APIs configuradas</p>
                     </div>
 
                 </div>
 
-                <!-- CHAVES DE API INDIVIDUAIS -->
-                <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-4">
-                    <div class="flex items-center justify-between mb-3">
+                <!-- CHAVES DE API INDIVIDUAIS (ALTURA REDUZIDA EM ~15%) -->
+                <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-3">
+                    <div class="flex items-center justify-between mb-2">
                         <h3 class="text-xs font-bold text-white flex items-center gap-2">
                             <span>🔑</span> Chaves de API Individuais
                         </h3>
-                        <button id="test-all-keys" type="button" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-medium transition">
+                        <button id="test-all-keys" type="button" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-medium transition">
                             Testar Todas
                         </button>
                     </div>
 
-                    <div id="key-results" class="hidden mb-3 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs"></div>
+                    <div id="key-results" class="hidden mb-2 p-2 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs"></div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                         <!-- Slot 1 -->
-                        <div class="bg-[#141e33] border border-slate-800 rounded-lg p-3 flex flex-col justify-between">
-                            <div class="flex items-center justify-between mb-1.5">
-                                <span class="text-[11px] font-bold text-slate-300">API 01</span>
-                                <span id="key-status-1" class="text-[10px] text-slate-500">—</span>
+                        <div class="bg-[#141e33] border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-[10px] font-bold text-slate-300">API 01</span>
+                                <span id="key-status-1" class="text-[9px] text-slate-500">—</span>
                             </div>
-                            <input id="api-key-1" type="password" placeholder="Chave 01" class="w-full bg-[#090d16] border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 mb-2.5 outline-none focus:border-sky-500">
-                            <div class="flex gap-1.5">
-                                <button type="button" data-test-key="1" class="flex-1 py-1 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
-                                <button type="button" data-save-key="1" class="flex-1 py-1 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
+                            <input id="api-key-1" type="password" placeholder="Chave 01" class="w-full bg-[#090d16] border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 mb-2 outline-none focus:border-sky-500">
+                            <div class="flex gap-1">
+                                <button type="button" data-test-key="1" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
+                                <button type="button" data-save-key="1" class="flex-1 py-0.5 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
                             </div>
                         </div>
 
                         <!-- Slot 2 -->
-                        <div class="bg-[#141e33] border border-slate-800 rounded-lg p-3 flex flex-col justify-between">
-                            <div class="flex items-center justify-between mb-1.5">
-                                <span class="text-[11px] font-bold text-slate-300">API 02</span>
-                                <span id="key-status-2" class="text-[10px] text-slate-500">—</span>
+                        <div class="bg-[#141e33] border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-[10px] font-bold text-slate-300">API 02</span>
+                                <span id="key-status-2" class="text-[9px] text-slate-500">—</span>
                             </div>
-                            <input id="api-key-2" type="password" placeholder="Chave 02" class="w-full bg-[#090d16] border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 mb-2.5 outline-none focus:border-sky-500">
-                            <div class="flex gap-1.5">
-                                <button type="button" data-test-key="2" class="flex-1 py-1 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
-                                <button type="button" data-save-key="2" class="flex-1 py-1 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
+                            <input id="api-key-2" type="password" placeholder="Chave 02" class="w-full bg-[#090d16] border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 mb-2 outline-none focus:border-sky-500">
+                            <div class="flex gap-1">
+                                <button type="button" data-test-key="2" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
+                                <button type="button" data-save-key="2" class="flex-1 py-0.5 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
                             </div>
                         </div>
 
                         <!-- Slot 3 -->
-                        <div class="bg-[#141e33] border border-slate-800 rounded-lg p-3 flex flex-col justify-between">
-                            <div class="flex items-center justify-between mb-1.5">
-                                <span class="text-[11px] font-bold text-slate-300">API 03</span>
-                                <span id="key-status-3" class="text-[10px] text-slate-500">—</span>
+                        <div class="bg-[#141e33] border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-[10px] font-bold text-slate-300">API 03</span>
+                                <span id="key-status-3" class="text-[9px] text-slate-500">—</span>
                             </div>
-                            <input id="api-key-3" type="password" placeholder="Chave 03" class="w-full bg-[#090d16] border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 mb-2.5 outline-none focus:border-sky-500">
-                            <div class="flex gap-1.5">
-                                <button type="button" data-test-key="3" class="flex-1 py-1 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
-                                <button type="button" data-save-key="3" class="flex-1 py-1 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
+                            <input id="api-key-3" type="password" placeholder="Chave 03" class="w-full bg-[#090d16] border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 mb-2 outline-none focus:border-sky-500">
+                            <div class="flex gap-1">
+                                <button type="button" data-test-key="3" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
+                                <button type="button" data-save-key="3" class="flex-1 py-0.5 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
                             </div>
                         </div>
 
                         <!-- Slot 4 -->
-                        <div class="bg-[#141e33] border border-slate-800 rounded-lg p-3 flex flex-col justify-between">
-                            <div class="flex items-center justify-between mb-1.5">
-                                <span class="text-[11px] font-bold text-slate-300">API 04</span>
-                                <span id="key-status-4" class="text-[10px] text-slate-500">—</span>
+                        <div class="bg-[#141e33] border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-[10px] font-bold text-slate-300">API 04</span>
+                                <span id="key-status-4" class="text-[9px] text-slate-500">—</span>
                             </div>
-                            <input id="api-key-4" type="password" placeholder="Chave 04" class="w-full bg-[#090d16] border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 mb-2.5 outline-none focus:border-sky-500">
-                            <div class="flex gap-1.5">
-                                <button type="button" data-test-key="4" class="flex-1 py-1 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
-                                <button type="button" data-save-key="4" class="flex-1 py-1 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
+                            <input id="api-key-4" type="password" placeholder="Chave 04" class="w-full bg-[#090d16] border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 mb-2 outline-none focus:border-sky-500">
+                            <div class="flex gap-1">
+                                <button type="button" data-test-key="4" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
+                                <button type="button" data-save-key="4" class="flex-1 py-0.5 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
                             </div>
                         </div>
                     </div>
