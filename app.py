@@ -183,7 +183,8 @@ def load_user(user_id):
 @app.before_request
 def require_active_account():
     if current_user.is_authenticated:
-        if not current_user.is_active_account:
+        # Verifica se o atributo existe no modelo User para evitar AttributeError
+        if hasattr(current_user, 'is_active_account') and not current_user.is_active_account:
             logout_user()
             if request.path.startswith("/api/"):
                 return jsonify({
