@@ -18,7 +18,7 @@
             <p class="mt-1 text-xs text-slate-400">Entre para acessar seu painel de análise.</p>
         </div>
 
-        <!-- Exibição de Mensagens de Sucesso ou Erro -->
+        <!-- Mensagens de Alerta -->
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             <div class="space-y-2">
@@ -40,11 +40,21 @@
                         class="appearance-none rounded-xl relative block w-full px-4 py-3 bg-slate-950 border border-slate-800 placeholder-slate-500 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm transition-all duration-200" 
                         placeholder="seu@email.com">
                 </div>
+                
+                <!-- Campo Senha com Olhinho -->
                 <div>
                     <label for="password" class="block text-xs font-medium text-slate-300 mb-1">Senha</label>
-                    <input id="password" name="password" type="password" required 
-                        class="appearance-none rounded-xl relative block w-full px-4 py-3 bg-slate-950 border border-slate-800 placeholder-slate-500 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm transition-all duration-200" 
-                        placeholder="Digite sua senha">
+                    <div class="relative">
+                        <input id="password" name="password" type="password" required 
+                            class="appearance-none rounded-xl relative block w-full pl-4 pr-12 py-3 bg-slate-950 border border-slate-800 placeholder-slate-500 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm transition-all duration-200" 
+                            placeholder="Digite sua senha">
+                        <button type="button" onclick="togglePassword('password', 'eye-icon-login')" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200 focus:outline-none">
+                            <svg id="eye-icon-login" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -66,5 +76,19 @@
         </div>
     </div>
 
+    <!-- Script para Alternar Senha -->
+    <script>
+        function togglePassword(fieldId, iconId) {
+            const passwordField = document.getElementById(fieldId);
+            const icon = document.getElementById(iconId);
+            if (passwordField.type === "password") {
+                passwordField.type = "text";
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a10.032 10.032 0 012.261-3.791m4.22-2.42A9.956 9.956 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21M3 3l18 18" />';
+            } else {
+                passwordField.type = "password";
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />';
+            }
+        }
+    </script>
 </body>
 </html>
