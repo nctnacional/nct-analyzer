@@ -27,6 +27,8 @@ from sqlalchemy.exc import SQLAlchemyError
 
 
 app = Flask(__name__)
+with app.app_context():
+    db.create_all()
 app.config['WTF_CSRF_ENABLED'] = False
 
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "")
