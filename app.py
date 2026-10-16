@@ -27,8 +27,6 @@ from sqlalchemy.exc import SQLAlchemyError
 
 
 app = Flask(__name__)
-with app.app_context():
-    db.create_all()
 app.config['WTF_CSRF_ENABLED'] = False
 
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "")
@@ -45,6 +43,12 @@ if database_url.startswith("postgresql://"):
         "postgresql://", "postgresql+psycopg2://", 1
     )
 
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+
+# Certifique-se de que o 'db' é inicializado aqui ou antes:
+# db.init_app(app) ou db = SQLAlchemy(app)
+
+# AGORA SIM, crie as tabelas com o contexto já com a base de dados configurada:
 app.config.update(
     SQLALCHEMY_DATABASE_URI=database_url,
     SQLALCHEMY_TRACK_MODIFICATIONS=False,
@@ -55,18 +59,29 @@ app.config.update(
     MAX_CONTENT_LENGTH=1 * 1024 * 1024,
 )
 
+# 1. Configurações e Instanciação do SQLAlchemy
+db = SQLAlchemy(app)
+
+# 2. AS CLASSES DOS MODELOS DEVEM ESTAR AQUI (ou importadas antes deste ponto):
+# class User(db.Model):
+#     ...
+
+# 3. Criação das tabelas (com o contexto ativo)
+with app.app_context():
+    db.create_all()
+
 if not app.config["SECRET_KEY"]:
     raise RuntimeError(
         "Configure SECRET_KEY com um segredo forte antes de iniciar o sistema."
     )
 
-db = SQLAlchemy(app)
+# 4. Inicialização das outras extensões (Sem reescrever o 'db')
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
 login_manager.login_message = "Faça login para continuar."
 login_manager.login_message_category = "warning"
-csrf = CSRFProtect(app)
 
+csrf = CSRFProtect(app)
 
 # =======================================================
 # CRIPTOGRAFIA DAS CHAVES DA TWELVE DATA
