@@ -334,27 +334,29 @@ def register():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if current_user.is_authenticated:
-        return redirect(url_for("index"))
-
-    if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-
-        user = User.query.filter_by(email=email).first()
-
-        if (
-            user
-            and check_password_hash(user.password_hash, password)
-            and user.is_active_account
-        ):
-            login_user(user)
+    try:
+        if current_user.is_authenticated:
             return redirect(url_for("index"))
 
-        flash("E-mail ou senha inválidos, ou conta bloqueada.", "danger")
+        if request.method == "POST":
+            email = request.form.get("email", "").strip().lower()
+            password = request.form.get("password", "")
 
-    return render_template("login.html")
+            user = User.query.filter_by(email=email).first()
 
+            if user and check_password_hash(user.password_hash, password):
+                login_user(user)
+                return redirect(url_for("index"))
+            else:
+                flash("E-mail ou senha incorretos.", "danger")
+
+        return render_template("login.html")
+        
+    except Exception as e:
+        # Isto vai capturar o erro exato e exibi-lo no site em vez de dar Erro 500
+        app.logger.exception("Erro crítico na rota /login")
+        flash(f"Erro interno: {str(e)}", "danger")
+        return render_template("login.html")
 
 @app.route("/logout", methods=["POST"])
 @login_required
