@@ -1,0 +1,208 @@
+
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administração | NCT ANALYZER V2 ONLINE</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand compact">
+            <h1>NCT ANALYZER <span>V2</span></h1>
+            <p>PAINEL ADMINISTRATIVO</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('logout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="secondary-button">Sair</button>
+        </form>
+    </header>
+
+    <main class="page-container">
+        <section class="page-heading">
+            <div>
+                <p class="eyebrow">GESTÃO DE ACESSOS</p>
+                <h2>Administração de usuários</h2>
+                <p class="subtitle">
+                    Consulte as contas e gerencie o acesso ao sistema.
+                </p>
+            </div>
+            <div class="stat-card">
+                <span>Total de contas</span>
+                <strong>{{ users|length }}</strong>
+            </div>
+        </section>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <section class="panel">
+            <div class="panel-heading">
+                <h3>Contas cadastradas</h3>
+                <span class="muted">Gerenciamento individual</span>
+            </div>
+
+            {% if users %}
+                <div class="table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Usuário</th>
+                                <th>Cadastro</th>
+                                <th>Tipo</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                                <tr>
+                                    <td>{{ user.id }}</td>
+                                    <td class="email-cell">{{ user.email }}</td>
+                                    <td>
+                                        {% if user.created_at %}
+                                            {{ user.created_at.strftime('%d/%m/%Y %H:%M') }}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if user.is_admin %}
+                                            <span class="status-badge admin-badge">Administrador</span>
+                                        {% else %}
+                                            <span class="status-badge">Usuário</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if user.is_active_account %}
+                                            <span class="status-badge active-badge">Ativa</span>
+                                        {% else %}
+                                            <span class="status-badge blocked-badge">Bloqueada</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if user.id != current_user.id %}
+                                            <div class="action-group">
+                                                <button
+                                                    type="button"
+                                                    class="small-button"
+                                                    data-action="toggle"
+                                                    data-user-id="{{ user.id }}"
+                                                    data-active="{{ 'false' if user.is_active_account else 'true' }}"
+                                                >
+                                                    {{ 'Bloquear' if user.is_active_account else 'Liberar' }}
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    class="small-button danger-button"
+                                                    data-action="delete"
+                                                    data-user-id="{{ user.id }}"
+                                                    data-email="{{ user.email }}"
+                                                >
+                                                    Excluir
+                                                </button>
+                                            </div>
+                                        {% else %}
+                                            <span class="muted">Conta atual</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="empty-state">Nenhum usuário cadastrado.</p>
+            {% endif %}
+        </section>
+
+        <p class="security-note">
+            Ações administrativas devem ser realizadas com cuidado.
+            A exclusão de uma conta é permanente.
+        </p>
+    </main>
+
+    <script>
+        const csrfToken = {{ csrf_token()|tojson }};
+
+        async function sendAdminRequest(url, payload) {
+            const response = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrfToken
+                },
+                body: JSON.stringify(payload)
+            });
+
+            let result = {};
+            try {
+                result = await response.json();
+            } catch (_) {}
+
+            if (!response.ok || result.success === false) {
+                throw new Error(result.error || "Não foi possível concluir a ação.");
+            }
+
+            return result;
+        }
+
+        document.querySelectorAll('[data-action="toggle"]').forEach(button => {
+            button.addEventListener("click", async () => {
+                const userId = button.dataset.userId;
+                const active = button.dataset.active === "true";
+                const action = active ? "liberar" : "bloquear";
+
+                if (!confirm(`Deseja ${action} esta conta?`)) return;
+
+                button.disabled = true;
+
+                try {
+                    await sendAdminRequest(
+                        `/admin/users/${userId}/status`,
+                        { active }
+                    );
+                    window.location.reload();
+                } catch (error) {
+                    alert(error.message);
+                    button.disabled = false;
+                }
+            });
+        });
+
+        document.querySelectorAll('[data-action="delete"]').forEach(button => {
+            button.addEventListener("click", async () => {
+                const userId = button.dataset.userId;
+                const email = button.dataset.email;
+
+                if (!confirm(`Confirma a exclusão permanente da conta ${email}?`)) {
+                    return;
+                }
+
+                button.disabled = true;
+
+                try {
+                    await sendAdminRequest(
+                        `/admin/users/${userId}/delete`,
+                        { confirm: true }
+                    );
+                    window.location.reload();
+                } catch (error) {
+                    alert(error.message);
+                    button.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Criar conta | NCT ANALYZER V2 ONLINE</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="auth-container">
+        <section class="auth-card">
+            <div class="brand">
+                <h1>NCT ANALYZER <span>V2</span></h1>
+                <p>ONLINE · MARKET INTELLIGENCE</p>
+            </div>
+
+            <h2>Criar sua conta</h2>
+            <p class="subtitle">
+                Cadastre-se para configurar seu próprio painel de análise.
+            </p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages">
+                        {% for category, message in messages %}
+                            <div class="flash {{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('register') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <label for="email">E-mail</label>
+                <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    placeholder="seu@email.com"
+                    autocomplete="email"
+                    maxlength="254"
+                    required
+                >
+
+                <label for="password">Criar senha</label>
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    placeholder="Mínimo de 12 caracteres"
+                    autocomplete="new-password"
+                    minlength="12"
+                    required
+                >
+
+                <label for="password_confirm">Confirmar senha</label>
+                <input
+                    type="password"
+                    id="password_confirm"
+                    name="password_confirm"
+                    placeholder="Digite a senha novamente"
+                    autocomplete="new-password"
+                    minlength="12"
+                    required
+                >
+
+                <p class="security-note">
+                    Utilize uma senha exclusiva e difícil de adivinhar.
+                </p>
+
+                <button type="submit" class="primary-button">
+                    Criar minha conta
+                </button>
+            </form>
+
+            <p class="auth-footer">
+                Já possui uma conta?
+                <a href="{{ url_for('login') }}">Voltar para o login</a>
+            </p>
+
+            <p class="security-note">
+                NCT ANALYZER V2 ONLINE · Market Intelligence
+            </p>
+        </section>
+    </main>
+</body>
+</html>

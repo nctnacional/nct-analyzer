@@ -1,0 +1,69 @@
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | NCT ANALYZER V2 ONLINE</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="auth-container">
+        <section class="auth-card">
+            <div class="brand">
+                <h1>NCT ANALYZER <span>V2</span></h1>
+                <p>ONLINE · MARKET INTELLIGENCE</p>
+            </div>
+
+            <h2>Acessar sua conta</h2>
+            <p class="subtitle">Entre para acessar seu painel de análise.</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages">
+                        {% for category, message in messages %}
+                            <div class="flash {{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('login') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <label for="email">E-mail</label>
+                <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    placeholder="seu@email.com"
+                    autocomplete="email"
+                    maxlength="254"
+                    required
+                >
+
+                <label for="password">Senha</label>
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    placeholder="Digite sua senha"
+                    autocomplete="current-password"
+                    required
+                >
+
+                <button type="submit" class="primary-button">
+                    Entrar no sistema
+                </button>
+            </form>
+
+            <p class="auth-footer">
+                Ainda não tem conta?
+                <a href="{{ url_for('register') }}">Criar cadastro</a>
+            </p>
+
+            <p class="security-note">
+                Acesso protegido · Configurações individuais por usuário
+            </p>
+        </section>
+    </main>
+</body>
+</html>
