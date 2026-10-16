@@ -27,6 +27,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 
 app = Flask(__name__)
+app.config['WTF_CSRF_ENABLED'] = False
 
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "")
 database_url = os.environ.get("DATABASE_URL", "").strip()
@@ -332,7 +333,6 @@ def register():
 
 
 @app.route("/login", methods=["GET", "POST"])
-@csrf.exempt
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("index"))
@@ -357,7 +357,6 @@ def login():
 
 
 @app.route("/logout", methods=["POST"])
-@csrf.exempt
 @login_required
 def logout():
     logout_user()
