@@ -351,10 +351,9 @@ def login():
         flash(f"Erro ao fazer login: {str(e)}", "danger")
         return render_template("login.html")
 
-@app.route("/logout")
+@app.route("/logout", methods=["GET", "POST"])
 @login_required
 def logout():
-    """Log out the current user and redirect to the login page."""
     logout_user()
     flash("Sessão terminada com sucesso.", "info")
     return redirect(url_for("login"))
