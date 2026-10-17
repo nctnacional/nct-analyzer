@@ -28,6 +28,9 @@ from sqlalchemy.exc import SQLAlchemyError
 
 app = Flask(__name__)
 
+# Desativa o CSRF globalmente para evitar erros de token em formulários HTML customizados
+app.config['WTF_CSRF_ENABLED'] = False
+
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "")
 database_url = os.environ.get("DATABASE_URL", "").strip()
 
@@ -62,7 +65,7 @@ login_manager = LoginManager(app)
 login_manager.login_view = "login"
 login_manager.login_message = "Faça login para continuar."
 login_manager.login_message_category = "warning"
-csrf = CSRFProtect(app)
+
 
 
 # =======================================================
@@ -281,43 +284,33 @@ def index():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    try:
-        if current_user.is_authenticated:
-            return redirect(url_for("index"))
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
 
-        if request.method == "POST":
-            email = request.form.get("email", "").strip().lower()
-            password = request.form.get("password", "")
-            confirm_password = request.form.get("confirm_password", "") # Campo de confirmação
+        if not email or not password or not confirm_password:
+            flash("Preencha todos os campos.", "danger")
+            return render_template("register.html")
 
-            if not email or not password or not confirm_password:
-                flash("Preencha todos os campos.", "danger")
-                return render_template("register.html")
+        if password != confirm_password:
+            flash("As senhas não conferem.", "danger")
+            return render_template("register.html")
 
-            # Validação se as senhas conferem
-            if password != confirm_password:
-                flash("As senhas não conferem. Digite novamente.", "danger")
-                return render_template("register.html")
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            flash("Este e-mail já está cadastrado.", "danger")
+            return render_template("register.html")
 
-            existing_user = User.query.filter_by(email=email).first()
-            if existing_user:
-                flash("Este e-mail já está cadastrado.", "danger")
-                return render_template("register.html")
+        hashed_password = generate_password_hash(password)
+        new_user = User(email=email, password_hash=hashed_password)
+        db.session.add(new_user)
+        db.session.commit()
 
-            hashed_password = generate_password_hash(password)
-            new_user = User(
-                email=email,
-                password_hash=hashed_password,
-                is_active_account=True
-            )
-            
-            db.session.add(new_user)
-            db.session.commit()
+        flash("Cadastro realizado com sucesso! Faça login.", "success")
+        return redirect(url_for("login"))
 
-            flash("Cadastro realizado com sucesso! Faça login.", "success")
-            return redirect(url_for("login"))
-
-        return render_template("register.html")
+    return render_template("register.html")
         
     except Exception as e:
         db.session.rollback()

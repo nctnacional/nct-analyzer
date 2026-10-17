@@ -32,6 +32,11 @@
         {% endwith %}
 
         <!-- Formulário de Registo -->
+
+        <form class="mt-6 space-y-6" action="{{ url_for('register') }}" method="POST">
+    <!-- Adicionar esta linha para enviar o token de segurança exigido pelo Flask -->
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    
         <form class="mt-6 space-y-6" action="{{ url_for('register') }}" method="POST">
             <div class="space-y-4">
                 <div>
