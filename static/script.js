@@ -978,6 +978,11 @@ async function toggleAnalysis(enable) {
 
         if (response.ok && data.success) {
             alert(enable ? "Análise iniciada com sucesso!" : "Análise interrompida.");
+            
+            // Atualiza os estados visuais na tela imediatamente sem precisar de dar F5
+            if (typeof refreshState === "function") refreshState();
+            if (typeof loadConfig === "function") loadConfig();
+            
             location.reload();
         } else {
             alert(data.error || data.message || "Não foi possível alterar o estado da análise.");
