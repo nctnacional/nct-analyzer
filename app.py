@@ -300,21 +300,22 @@ def register():
             return render_template("register.html")
 
         try:
+            # Criação básica e segura compatível com qualquer estrutura de User
             user = User(
                 email=email,
-                password_hash=generate_password_hash(password),
-                is_active_account=True
+                password_hash=generate_password_hash(password)
             )
+            
             db.session.add(user)
-            db.session.flush()
-            db.session.add(UserSettings(user_id=user.id))
             db.session.commit()
 
-            flash("Conta criada com sucesso! Faça login.", "success")
+            flash("Conta criada com sucesso! Faça login para continuar.", "success")
             return redirect(url_for("login"))
+            
         except Exception as e:
             db.session.rollback()
             flash(f"Erro ao criar conta: {str(e)}", "danger")
+            return render_template("register.html")
 
     return render_template("register.html")
 
