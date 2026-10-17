@@ -347,7 +347,7 @@ def login():
 
 
 @app.route("/logout", methods=["POST"])
-@csrf.exempt
+
 @login_required
 def logout():
     logout_user()
