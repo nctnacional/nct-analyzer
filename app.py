@@ -312,10 +312,9 @@ def register():
 
     return render_template("register.html")
         
- except Exception as e:
+except Exception as e:
         db.session.rollback()
-        app.logger.error(f"Erro na operação: {str(e)}")
-        flash(f"Ocorreu um erro: {str(e)}", "danger")
+        flash(f"Erro no cadastro: {str(e)}", "danger")
         return render_template("register.html")
 
 @app.route("/login", methods=["GET", "POST"])
