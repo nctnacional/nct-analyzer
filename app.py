@@ -278,48 +278,44 @@ def api_error(message, status=400):
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    try:  # <--- O try deve abrir aqui no começo da função
-        if current_user.is_authenticated:
-            return redirect(url_for("index"))
+    if current_user.is_authenticated:
+        return redirect(url_for("index"))
 
-        if request.method == "POST":
-            email = request.form.get("email", "").strip().lower()
-            password = request.form.get("password", "")
-            confirm_password = request.form.get("confirm_password", "")
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
 
-            if not email or not password or not confirm_password:
-                flash("Preencha todos os campos.", "danger")
-                return render_template("register.html")
+        if not valid_email(email):
+            flash("E-mail inválido.", "danger")
+            return render_template("register.html")
 
-            if password != confirm_password:
-                flash("As senhas não conferem.", "danger")
-                return render_template("register.html")
+        if len(password) < 12:
+            flash("Use uma senha com pelo menos 12 caracteres.", "danger")
+            return render_template("register.html")
 
-            existing_user = User.query.filter_by(email=email).first()
-            if existing_user:
-                flash("Este e-mail já está cadastrado.", "danger")
-                return render_template("register.html")
+        if User.query.filter_by(email=email).first():
+            flash("Este e-mail já está cadastrado.", "danger")
+            return render_template("register.html")
 
-            hashed_password = generate_password_hash(password)
-            new_user = User(email=email, password_hash=hashed_password)
-            db.session.add(new_user)
+        try:
+            user = User(
+                email=email,
+                password_hash=generate_password_hash(password),
+                is_admin=False,
+                is_active_account=True
+            )
+            db.session.add(user)
+            db.session.flush()
+            db.session.add(UserSettings(user_id=user.id))
             db.session.commit()
 
-            flash("Cadastro realizado com sucesso! Faça login.", "success")
+            flash("Conta criada com sucesso! Faça login para continuar.", "success")
             return redirect(url_for("login"))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Erro no cadastro: {str(e)}", "danger")
 
-        return render_template("register.html")
-
-    except Exception as e:  # <--- O except agora tem o seu par correspondente em cima
-        db.session.rollback()
-        flash(f"Erro no cadastro: {str(e)}", "danger")
-        return render_template("register.html")
-
-            
-    except Exception as e:  # <--- O except agora tem o seu par correspondente em cima
-        db.session.rollback()
-        flash(f"Erro no cadastro: {str(e)}", "danger")
-        return render_template("register.html")
+    return render_template("register.html")
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -696,15 +692,11 @@ def init_db():
     click.echo("Tabelas criadas.")
 
 
-@app.cli.command("create-admin")
-@click.option("--email", prompt="E-mail do administrador")
-@click.password_option(
-    "--password",
-    confirmation_prompt=True,
-    help="Senha do administrador (mínimo de 12 caracteres).",
-)
-def create_admin(email, password):
-    """Cria ou promove uma conta administrativa de forma controlada."""
+@app.cli.command("criar-admin")
+@click.option("--email", prompt="E-mail do Admin", help="E-mail para a conta admin")
+@click.option("--password", prompt=True, hide_input=True, confirmation_prompt=True, help="Senha para a conta admin")
+def criar_admin(email, password):
+    """Comando de terminal para criar ou atualizar o utilizador admin."""
     email = email.strip().lower()
 
     if not valid_email(email):
@@ -713,28 +705,25 @@ def create_admin(email, password):
     if len(password) < 12:
         raise click.ClickException("Use uma senha com pelo menos 12 caracteres.")
 
-    with app.app_context():
-        db.create_all()
+    user = User.query.filter_by(email=email).first()
 
-        user = User.query.filter_by(email=email).first()
+    if user is None:
+        user = User(
+            email=email,
+            password_hash=generate_password_hash(password),
+            is_admin=True,
+            is_active_account=True
+        )
+        db.session.add(user)
+        db.session.flush()
+        db.session.add(UserSettings(user_id=user.id))
+    else:
+        user.password_hash = generate_password_hash(password)
+        user.is_admin = True
+        user.is_active_account = True
 
-        if user is None:
-            user = User(
-                email=email,
-                password_hash=generate_password_hash(password),
-                is_admin=True,
-                is_active_account=True,
-            )
-            db.session.add(user)
-            db.session.flush()
-            db.session.add(UserSettings(user_id=user.id))
-        else:
-            user.password_hash = generate_password_hash(password)
-            user.is_admin = True
-            user.is_active_account = True
-
-        db.session.commit()
-        click.echo("Conta administrativa criada/atualizada.")
+    db.session.commit()
+    click.echo("Conta administrativa criada/atualizada com sucesso.")
 
 
 @app.errorhandler(403)
