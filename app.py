@@ -741,3 +741,8 @@ if __name__ == "__main__":
     # Apenas para testes locais. Em produção, use um servidor WSGI
     # e HTTPS fornecido pela hospedagem.
     app.run(host="127.0.0.1", port=8000, debug=False)
+    
+    @app.errorhandler(Exception)
+def handle_exception(e):
+    import traceback
+    return f"<h3>Erro Crítico Detalhado:</h3><pre>{traceback.format_exc()}</pre>", 500
