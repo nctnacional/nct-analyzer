@@ -35,18 +35,15 @@ app.config['WTF_CSRF_ENABLED'] = False
 app.config['WTF_CSRF_ENABLED'] = False
 
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "")
-database_url = os.environ.get("DATABASE_URL", "").strip()
+database_url = os.environ.get("DATABASE_URL", "").strip().strip('"').strip("'")
 
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
 if not database_url:
     database_url = "sqlite:///nct_online.db"
-
-if database_url.startswith("postgresql://"):
-    database_url = database_url.replace(
-        "postgresql://", "postgresql+psycopg2://", 1
-    )
+elif "postgresql://" in database_url and not "psycopg2" in database_url:
+    database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 app.config.update(
     SQLALCHEMY_DATABASE_URI=database_url,
