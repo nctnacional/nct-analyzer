@@ -75,6 +75,14 @@
     </form>
 </div>
 
+<!-- Link para voltar ao Login -->
+<div class="mt-6 text-center text-xs text-slate-400">
+    Já tem uma conta? 
+    <a href="{{ url_for('login') }}" class="font-medium text-indigo-400 hover:text-indigo-300 hover:underline">
+        Fazer login
+    </a>
+</div>
+
 <!-- Script isolado corretamente dentro da tag script -->
 <script>
 function togglePassword(inputId, iconId) {
