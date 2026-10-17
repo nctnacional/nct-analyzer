@@ -395,50 +395,43 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function saveKey(number) {
-        const input = $(`api-key-${number}`);
-        const button = document.querySelector(
-            `[data-save-key="${number}"]`
+    const input = $(`api-key-${number}`);
+    const button = document.querySelector(`[data-save-key="${number}"]`);
+    const key = input ? input.value.trim() : "";
+
+    if (!key) {
+        showMessage("key-results", "Digite uma chave antes de salvar.", "warning");
+        return;
+    }
+
+    setLoading(button, true, "Salvando...");
+
+    try {
+        const response = await api(`/api/keys/${number}`, {
+            method: "POST",
+            body: JSON.stringify({ key: key, api_key: key })
+        });
+
+        if (input) input.value = ""; // Limpa o campo de entrada por segurança
+
+        showMessage(
+            "key-results",
+            response.message || `Chave ${number} salva com sucesso!`,
+            "success"
         );
 
-        const key = input?.value.trim() || "";
-
-        if (!key) {
-            showMessage(
-                "key-results",
-                "Digite uma chave antes de salvar.",
-                "warning"
-            );
-            return;
-        }
-
-        setLoading(button, true, "Salvando...");
-
-        try {
-            const response = await api(`/api/keys/${number}`, {
-                method: "POST",
-                body: JSON.stringify({ api_key: key })
-            });
-
-            if (input) input.value = "";
-
-            showMessage(
-                "key-results",
-                response.message || `Chave ${number} salva.`,
-                "success"
-            );
-
-            await loadConfig();
-            await refreshState();
-        } catch (error) {
-            showMessage(
-                "key-results",
-                `Erro ao salvar a chave ${number}: ${error.message}`,
-                "error"
-            );
-        } finally {
-            setLoading(button, false);
-        }
+        await loadConfig();
+        await refreshState();
+    } catch (error) {
+        showMessage(
+            "key-results",
+            `Erro ao salvar a chave ${number}: ${error.message || error}`,
+            "error"
+        );
+    } finally {
+        setLoading(button, false);
     }
+}
 
     async function testKey(number) {
         const input = $(`api-key-${number}`);
@@ -905,4 +898,74 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     initializeDashboard();
+});
+
+
+document.addEventListener("DOMContentLoaded", () => {
+
+    // 1. Ouvinte para os botões de SALVAR CHAVE (ex: data-save-key="1")
+    document.querySelectorAll("[data-save-key]").forEach(button => {
+        button.addEventListener("click", async () => {
+            const keyNum = button.getAttribute("data-save-key");
+            const input = $(`api-key-${keyNum}`); // Usa o seletor $() definido no seu script
+            if (!input) return;
+
+            const keyValue = input.value.trim();
+            if (!keyValue) {
+                showMessage("key-results", "Digite uma chave antes de salvar.", "warning");
+                return;
+            }
+
+            setLoading(button, true, "Salvando...");
+
+            try {
+                // Usa a função api() nativa do seu script para enviar com segurança e CSRF
+                const data = await api(`/api/keys/${keyNum}`, {
+                    method: "POST",
+                    body: JSON.stringify({ key: keyValue, api_key: keyValue })
+                });
+
+                input.value = ""; // Limpa o campo por segurança
+                showMessage("key-results", data.message || `Chave ${keyNum} salva com sucesso!`, "success");
+                
+                if (typeof loadConfig === "function") loadConfig();
+                if (typeof refreshState === "function") refreshState();
+            } catch (error) {
+                showMessage("key-results", `Erro ao salvar chave: ${error.message || error}`, "error");
+            } finally {
+                setLoading(button, false);
+            }
+        });
+    });
+
+    // 2. Ouvinte para o botão INICIAR e PARAR Análise
+    document.querySelectorAll("button").forEach(btn => {
+        const text = btn.textContent.trim().toUpperCase();
+        
+        if (text === "INICIAR" || text === "START") {
+            btn.addEventListener("click", () => toggleAnalysis(true));
+        }
+        if (text === "PARAR" || text === "STOP") {
+            btn.addEventListener("click", () => toggleAnalysis(false));
+        }
+    });
+
+    async function toggleAnalysis(enable) {
+        try {
+            const data = await api("/api/toggle", {
+                method: "POST",
+                body: JSON.stringify({ enabled: enable })
+            });
+
+            if (data.success) {
+                alert(enable ? "Análise iniciada com sucesso!" : "Análise interrompida.");
+                location.reload();
+            } else {
+                alert(data.error || "Não foi possível alterar o estado da análise.");
+            }
+        } catch (err) {
+            alert("Erro ao comunicar com o servidor: " + (err.message || err));
+        }
+    }
+
 });
