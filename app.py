@@ -27,6 +27,8 @@ from sqlalchemy.exc import SQLAlchemyError
 
 
 app = Flask(__name__)
+csrf = CSRFProtect(app)
+app.config['WTF_CSRF_ENABLED'] = False 
 
 # Desativa o CSRF globalmente para evitar erros de token em formulários HTML customizados
 app.config['WTF_CSRF_ENABLED'] = False
