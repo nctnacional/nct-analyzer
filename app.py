@@ -276,12 +276,6 @@ def api_error(message, status=400):
 # CADASTRO E LOGIN
 # ==========================================================
 
-@app.route("/")
-def index():
-    if current_user.is_authenticated:
-        return redirect(url_for("dashboard"))
-    return redirect(url_for("login"))
-
 @app.route("/register", methods=["GET", "POST"])
 def register():
     try:  # <--- O try deve abrir aqui no começo da função
@@ -316,6 +310,12 @@ def register():
 
         return render_template("register.html")
 
+    except Exception as e:  # <--- O except agora tem o seu par correspondente em cima
+        db.session.rollback()
+        flash(f"Erro no cadastro: {str(e)}", "danger")
+        return render_template("register.html")
+
+            
     except Exception as e:  # <--- O except agora tem o seu par correspondente em cima
         db.session.rollback()
         flash(f"Erro no cadastro: {str(e)}", "danger")
