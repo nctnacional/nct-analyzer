@@ -339,9 +339,13 @@ def login():
 
         return render_template("login.html")
     
-    except Exception as e:
-        import traceback
-        return f"<h3>Erro detalhado no Servidor:</h3><pre>{traceback.format_exc()}</pre>", 500
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    flash("Sessão terminada com sucesso.", "info")
+    return redirect(url_for("login"))
+    
 
 
 # ==========================================================
