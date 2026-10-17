@@ -279,7 +279,7 @@ def api_error(message, status=400):
 @app.route("/")
 def index():
     if current_user.is_authenticated:
-        return render_template("index.html")
+        return render_template("dashboard.html")  # Altere para o nome correto do seu ficheiro
     return redirect(url_for("login"))
 
 @app.route("/register", methods=["GET", "POST"])
