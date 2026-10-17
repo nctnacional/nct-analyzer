@@ -296,25 +296,44 @@ def register():
             return render_template("register.html")
 
         if User.query.filter_by(email=email).first():
-            flash("Este e-mail já está registado.", "danger")
+            flash("Este e-mail já está cadastrado.", "danger")
             return render_template("register.html")
 
         try:
+            # 1. Criação simples do usuário
             user = User(
                 email=email,
-                password_hash=generate_password_hash(password),
-                is_active_account=True
+                password_hash=generate_password_hash(password)
             )
+            
+            # Atribuição condicional de atributos para evitar erro de inicialização
+            if hasattr(user, 'is_active_account'):
+                setattr(user, 'is_active_account', True)
+            if hasattr(user, 'is_admin'):
+                setattr(user, 'is_admin', False)
+
             db.session.add(user)
-            db.session.flush()
-            db.session.add(UserSettings(user_id=user.id))
+            db.session.flush()  # Gera o user.id
+
+            # 2. Criação das configurações se a classe existir
+            try:
+                if 'UserSettings' in globals():
+                    db.session.add(UserSettings(user_id=user.id))
+            except Exception as settings_err:
+                print(f"Aviso ao criar UserSettings: {settings_err}")
+
             db.session.commit()
 
-            flash("Conta criada com sucesso! Faça login.", "success")
+            flash("Conta criada com sucesso! Faça login para continuar.", "success")
             return redirect(url_for("login"))
+
         except Exception as e:
             db.session.rollback()
-            flash(f"Erro ao criar conta: {str(e)}", "danger")
+            import traceback
+            error_trace = traceback.format_exc()
+            print(f"Erro no cadastro: {error_trace}")
+            flash(f"Erro ao criar conta no banco de dados: {str(e)}", "danger")
+            return render_template("register.html")
 
     return render_template("register.html")
 
