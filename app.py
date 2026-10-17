@@ -35,22 +35,20 @@ app.config['WTF_CSRF_ENABLED'] = False
 
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "")
 
-
 database_url = os.environ.get("DATABASE_URL")
+print(f"DEBUG - DATABASE_URL lida do ambiente: {database_url}")
 
-# Se houver DATABASE_URL e for válida, usa-a; caso contrário, usa SQLite local robusto para produção
-if database_url and database_url.strip():
+if database_url:
     database_url = database_url.strip().strip('"').strip("'")
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
-    if "postgresql://" in database_url and "psycopg2" not in database_url:
+    if "postgresql://" in database_url and not "psycopg2" in database_url:
         database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 else:
     database_url = "sqlite:///nct_online.db"
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
 
 
 if not app.config["SECRET_KEY"]:
