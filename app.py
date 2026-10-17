@@ -325,9 +325,8 @@ def register():
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("index"))
-    # ... continuação normal da rota de login
 
-   if request.method == "POST":
+    if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
 
@@ -339,6 +338,8 @@ def login():
             flash("E-mail ou senha inválidos.", "danger")
 
     return render_template("login.html")
+
+
 
 @app.route("/logout", methods=["POST"])
 
