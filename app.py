@@ -38,7 +38,7 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "")
 
 
 import os
-from urllib.parse import quote_plus
+from flask_sqlalchemy import SQLAlchemy
 
 database_url = os.environ.get("DATABASE_URL")
 
@@ -46,31 +46,22 @@ if database_url:
     database_url = str(database_url).strip().strip('"').strip("'")
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
-        
-    try:
-        if "postgresql://" in database_url:
-            # Remove o prefixo para isolar as credenciais e o host
-            clean_url = database_url.replace("postgresql+psycopg2://", "").replace("postgresql://", "")
-            
-            # rsplit("@", 1) separa a partir da direita, evitando conflitos se a password tiver "@"
-            if "@" in clean_url:
-                auth_part, host_db_part = clean_url.rsplit("@", 1)
-                if ":" in auth_part:
-                    user, password = auth_part.split(":", 1)
-                    encoded_password = quote_plus(password)
-                    database_url = f"postgresql+psycopg2://{user}:{encoded_password}@{host_db_part}"
-                else:
-                    database_url = f"postgresql+psycopg2://{auth_part}@{host_db_part}"
-            else:
-                database_url = f"postgresql+psycopg2://{clean_url}"
-    except Exception as e:
-        print(f"Erro ao processar URL do Postgres, a usar fallback: {e}")
-        database_url = "sqlite:///nct_online.db"
+    if "postgresql://" in database_url and "psycopg2" not in database_url:
+        database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 else:
     database_url = "sqlite:///nct_online.db"
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# Inicialização com rede de segurança absoluta
+db = SQLAlchemy()
+try:
+    db.init_app(app)
+except Exception as e:
+    print(f"AVISO: Erro ao iniciar base de dados externa ({e}). A usar SQLite de fallback.")
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///nct_online.db"
+    db = SQLAlchemy(app)
 
 
 
