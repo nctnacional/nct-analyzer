@@ -920,10 +920,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
             try {
                 // Usa a função api() nativa do seu script para enviar com segurança e CSRF
-                const data = await api(`/api/keys/${keyNum}`, {
-                    method: "POST",
-                    body: JSON.stringify({ key: keyValue, api_key: keyValue })
-                });
+                // Substitua o corpo do fetch de salvamento por este:
+const data = await api(`/api/keys/${keyNum}`, {
+    method: "POST",
+    body: JSON.stringify({ api_key: keyValue, key: keyValue })
+});
 
                 input.value = ""; // Limpa o campo por segurança
                 showMessage("key-results", data.message || `Chave ${keyNum} salva com sucesso!`, "success");
@@ -951,21 +952,21 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     async function toggleAnalysis(enable) {
-        try {
-            const data = await api("/api/toggle", {
-                method: "POST",
-                body: JSON.stringify({ enabled: enable })
-            });
+    try {
+        const data = await api("/api/toggle", {
+            method: "POST",
+            body: JSON.stringify({ enabled: enable })
+        });
 
-            if (data.success) {
-                alert(enable ? "Análise iniciada com sucesso!" : "Análise interrompida.");
-                location.reload();
-            } else {
-                alert(data.error || "Não foi possível alterar o estado da análise.");
-            }
-        } catch (err) {
-            alert("Erro ao comunicar com o servidor: " + (err.message || err));
+        if (data.success) {
+            alert(enable ? "Análise iniciada!" : "Análise desligada.");
+            location.reload();
+        } else {
+            alert(data.message || data.error || "Não foi possível alterar o estado.");
         }
+    } catch (err) {
+        alert("Erro ao comunicar com o servidor: " + (err.message || err));
     }
+}
 
 });
