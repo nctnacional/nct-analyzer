@@ -983,7 +983,8 @@ async function toggleAnalysis(enable) {
             if (typeof refreshState === "function") refreshState();
             if (typeof loadConfig === "function") loadConfig();
             
-            location.reload();
+           // location.reload();
+           
         } else {
             alert(data.error || data.message || "Não foi possível alterar o estado da análise.");
         }
