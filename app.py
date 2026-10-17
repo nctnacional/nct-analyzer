@@ -1,13 +1,8 @@
-
 import os
-import re
-import traceback
 from datetime import datetime, timezone
 from functools import wraps
-
 import click
 from cryptography.fernet import Fernet, InvalidToken
-from dotenv import load_dotenv
 from flask import (
     Flask, render_template, redirect, url_for, request,
     jsonify, flash, abort
@@ -16,34 +11,25 @@ from flask_login import (
     LoginManager, UserMixin, login_user, logout_user,
     login_required, current_user
 )
-from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
-from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.security import generate_password_hash, check_password_hash
-
+from sqlalchemy.exc import SQLAlchemyError
 from data_source import TwelveDataSource
+from dotenv import load_dotenv
+
+# Importa a instância única e partilhada do db
+from extensions import db
 
 load_dotenv()
 
-
 app = Flask(__name__)
+
+# Configurações de segurança e CSRF
 csrf = CSRFProtect(app)
-app.config['WTF_CSRF_ENABLED'] = False 
-
-# Desativa o CSRF globalmente para evitar erros de token em formulários HTML customizados
 app.config['WTF_CSRF_ENABLED'] = False
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "segredo-padrao-seguro")
 
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "")
-
-# =======================================================
-# =======================================================
-
-import os
-from flask import Flask
-from extensions import db  # Importa a instância única
-
-app = Flask(__name__)
-
+# Tratamento e configuração da Base de Dados (PostgreSQL / SQLite)
 raw_db_url = os.environ.get("DATABASE_URL", "").strip().strip('"').strip("'")
 
 if raw_db_url and "://" in raw_db_url:
@@ -57,21 +43,15 @@ else:
 
 app.config["SQLALCHEMY_DATABASE_URI"] = final_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["REMEMBER_COOKIE_HTTPONLY"] = True
+app.config["REMEMBER_COOKIE_SAMESITE"] = "Lax"
+app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024
 
-# Inicializa o db na aplicação de forma única
+# Inicialização única do SQLAlchemy na aplicação
 db.init_app(app)
 
-
-# =======================================================
-# =======================================================
-
-
-if not app.config["SECRET_KEY"]:
-    raise RuntimeError(
-        "Configure SECRET_KEY com um segredo forte antes de iniciar o sistema."
-    )
-
-db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
 login_manager.login_message = "Faça login para continuar."
