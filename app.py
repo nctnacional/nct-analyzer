@@ -38,40 +38,41 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "")
 
 
 import os
-from urllib.parse import urlparse, quote_plus
+from urllib.parse import quote_plus
 
 database_url = os.environ.get("DATABASE_URL")
 
-try:
-    if database_url:
-        database_url = str(database_url).strip().strip('"').strip("'")
+if database_url:
+    database_url = str(database_url).strip().strip('"').strip("'")
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
         
-        # Correção do protocolo antigo do Render/Heroku
-        if database_url.startswith("postgres://"):
-            database_url = database_url.replace("postgres://", "postgresql://", 1)
-            
-        # Tratamento seguro para URLs do PostgreSQL com carateres especiais na password
+    try:
         if "postgresql://" in database_url:
-            parsed = urlparse(database_url)
-            if parsed.password:
-                encoded_password = quote_plus(parsed.password)
-                # Reconstrói a URL com a password codificada em segurança
-                userinfo = f"{parsed.username}:{encoded_password}"
-                if parsed.hostname:
-                    hostinfo = parsed.hostname
-                    if parsed.port:
-                        hostinfo += f":{parsed.port}"
-                    database_url = f"postgresql+psycopg2://{userinfo}@{hostinfo}{parsed.path}"
-            elif "psycopg2" not in database_url:
-                database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
-    else:
+            # Remove o prefixo para isolar as credenciais e o host
+            clean_url = database_url.replace("postgresql+psycopg2://", "").replace("postgresql://", "")
+            
+            # rsplit("@", 1) separa a partir da direita, evitando conflitos se a password tiver "@"
+            if "@" in clean_url:
+                auth_part, host_db_part = clean_url.rsplit("@", 1)
+                if ":" in auth_part:
+                    user, password = auth_part.split(":", 1)
+                    encoded_password = quote_plus(password)
+                    database_url = f"postgresql+psycopg2://{user}:{encoded_password}@{host_db_part}"
+                else:
+                    database_url = f"postgresql+psycopg2://{auth_part}@{host_db_part}"
+            else:
+                database_url = f"postgresql+psycopg2://{clean_url}"
+    except Exception as e:
+        print(f"Erro ao processar URL do Postgres, a usar fallback: {e}")
         database_url = "sqlite:///nct_online.db"
-except Exception as e:
-    print(f"AVISO: Erro ao processar DATABASE_URL ({e}), a usar SQLite de segurança.")
+else:
     database_url = "sqlite:///nct_online.db"
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+
 
 
 if not app.config["SECRET_KEY"]:
