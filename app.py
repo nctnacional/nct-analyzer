@@ -38,13 +38,14 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "")
 # =======================================================
 # =======================================================
 
-
 import os
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask
+from extensions import db  # Importa a instância única
+
+app = Flask(__name__)
 
 raw_db_url = os.environ.get("DATABASE_URL", "").strip().strip('"').strip("'")
 
-# Tratamento e sanitização rigorosa da URL
 if raw_db_url and "://" in raw_db_url:
     if raw_db_url.startswith("postgres://"):
         raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
@@ -52,15 +53,13 @@ if raw_db_url and "://" in raw_db_url:
         raw_db_url = raw_db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
     final_db_url = raw_db_url
 else:
-    # Se a variável estiver vazia ou inválida, usa SQLite local com segurança
     final_db_url = "sqlite:///nct_online.db"
 
 app.config["SQLALCHEMY_DATABASE_URI"] = final_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# Inicialização ÚNICA do banco de dados para evitar "already registered"
-db = SQLAlchemy(app)
-
+# Inicializa o db na aplicação de forma única
+db.init_app(app)
 
 
 # =======================================================
