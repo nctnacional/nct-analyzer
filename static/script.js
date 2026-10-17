@@ -950,33 +950,40 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
-    // 2. Ouvinte para o botão INICIAR e PARAR Análise
-    document.querySelectorAll("button").forEach(btn => {
-        const text = btn.textContent.trim().toUpperCase();
-        
-        if (text === "INICIAR" || text === "START") {
-            btn.addEventListener("click", () => toggleAnalysis(true));
-        }
-        if (text === "PARAR" || text === "STOP") {
-            btn.addEventListener("click", () => toggleAnalysis(false));
-        }
-    });
+    //2 Ouvinte para os botões INICIAR e PARAR
+document.querySelectorAll("button").forEach(btn => {
+    const text = btn.textContent.trim().toUpperCase();
+    if (text === "INICIAR" || text === "START") {
+        btn.addEventListener("click", () => toggleAnalysis(true));
+    }
+    if (text === "PARAR" || text === "STOP") {
+        btn.addEventListener("click", () => toggleAnalysis(false));
+    }
+});
 
-    async function toggleAnalysis(enable) {
+async function toggleAnalysis(enable) {
     try {
-        const data = await api("/api/toggle", {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
+
+        const response = await fetch("/api/toggle", {
             method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrfToken
+            },
             body: JSON.stringify({ enabled: enable })
         });
 
-        if (data.success) {
-            alert(enable ? "Análise iniciada!" : "Análise desligada.");
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            alert(enable ? "Análise iniciada com sucesso!" : "Análise interrompida.");
             location.reload();
         } else {
-            alert(data.message || data.error || "Não foi possível alterar o estado.");
+            alert(data.error || data.message || "Não foi possível alterar o estado da análise.");
         }
     } catch (err) {
-        alert("Erro ao comunicar com o servidor: " + (err.message || err));
+        alert("Erro ao comunicar com o servidor: " + err.message);
     }
 }
 
