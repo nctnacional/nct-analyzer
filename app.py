@@ -280,55 +280,50 @@ def index():
     return redirect(url_for("login"))
 
 @app.route("/register", methods=["GET", "POST"])
-@csrf.exempt
 def register():
-    if current_user.is_authenticated:
-        return redirect(url_for("index"))
+    try:
+        if current_user.is_authenticated:
+            return redirect(url_for("index"))
 
-    if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-        password_confirm = request.form.get("password_confirm", "")
+        if request.method == "POST":
+            email = request.form.get("email", "").strip().lower()
+            password = request.form.get("password", "")
+            confirm_password = request.form.get("confirm_password", "") # Campo de confirmação
 
-        if not valid_email(email):
-            flash("Informe um e-mail válido.", "danger")
-            return render_template("register.html")
+            if not email or not password or not confirm_password:
+                flash("Preencha todos os campos.", "danger")
+                return render_template("register.html")
 
-        if len(password) < 12:
-            flash("A senha deve ter pelo menos 12 caracteres.", "danger")
-            return render_template("register.html")
+            # Validação se as senhas conferem
+            if password != confirm_password:
+                flash("As senhas não conferem. Digite novamente.", "danger")
+                return render_template("register.html")
 
-        if password != password_confirm:
-            flash("As senhas não conferem.", "danger")
-            return render_template("register.html")
+            existing_user = User.query.filter_by(email=email).first()
+            if existing_user:
+                flash("Este e-mail já está cadastrado.", "danger")
+                return render_template("register.html")
 
-        if User.query.filter_by(email=email).first():
-            flash("Já existe uma conta com esse e-mail.", "danger")
-            return render_template("register.html")
-
-        try:
-            user = User(
+            hashed_password = generate_password_hash(password)
+            new_user = User(
                 email=email,
-                password_hash=generate_password_hash(password),
-                is_admin=False,
-                is_active_account=True,
+                password_hash=hashed_password,
+                is_active_account=True
             )
-            db.session.add(user)
-            db.session.flush()
-
-            db.session.add(UserSettings(user_id=user.id))
+            
+            db.session.add(new_user)
             db.session.commit()
 
-            login_user(user)
-            flash("Conta criada com sucesso.", "success")
-            return redirect(url_for("dashboard"))
+            flash("Cadastro realizado com sucesso! Faça login.", "success")
+            return redirect(url_for("login"))
 
-        except SQLAlchemyError:
-            db.session.rollback()
-            app.logger.exception("Falha ao criar conta.")
-            flash("Não foi possível criar a conta agora.", "danger")
-
-    return render_template("register.html")
+        return render_template("register.html")
+        
+    except Exception as e:
+        db.session.rollback()
+        app.logger.exception("Erro crítico na rota /register")
+        flash(f"Erro no cadastro: {str(e)}", "danger")
+        return render_template("register.html")
 
 
 @app.route("/login", methods=["GET", "POST"])
