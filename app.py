@@ -1,30 +1,29 @@
 
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
 import re
-import secrets
+import traceback
 from datetime import datetime, timezone
 from functools import wraps
 
 import click
 from cryptography.fernet import Fernet, InvalidToken
+from dotenv import load_dotenv
 from flask import (
     Flask, render_template, redirect, url_for, request,
     jsonify, flash, abort
 )
-from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
     LoginManager, UserMixin, login_user, logout_user,
     login_required, current_user
 )
+from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
-from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import inspect, text
 from sqlalchemy.exc import SQLAlchemyError
+from werkzeug.security import generate_password_hash, check_password_hash
+
 from data_source import TwelveDataSource
+
+load_dotenv()
 
 
 app = Flask(__name__)
@@ -36,8 +35,6 @@ app.config['WTF_CSRF_ENABLED'] = False
 
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "")
 
-
-import os
 
 database_url = os.environ.get("DATABASE_URL")
 
@@ -92,6 +89,7 @@ def encrypt_secret(value):
 
 
 def decrypt_secret(value):
+    """Decrypt a secret value with the configured Fernet cipher."""
     if not value:
         return None
     try:
@@ -102,6 +100,7 @@ def decrypt_secret(value):
 
 
 def mask_secret(value):
+    """Mask a secret value for safe display while keeping the ends visible."""
     if not value:
         return ""
     if len(value) <= 8:
@@ -114,6 +113,8 @@ def mask_secret(value):
 # ==========================================================
 
 class User(UserMixin, db.Model):
+    """Representa uma conta de usuário armazenada no banco de dados."""
+
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(254), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
@@ -137,6 +138,10 @@ class User(UserMixin, db.Model):
 
 
 class UserSettings(db.Model):
+    """Store per-user analysis and API configuration."""
+
+    # SQLAlchemy models primarily expose mapped columns, not public methods.
+    # pylint: disable=too-few-public-methods
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(
         db.Integer,
@@ -182,11 +187,13 @@ with app.app_context():
 
 @login_manager.user_loader
 def load_user(user_id):
+    """Load a user by ID for Flask-Login."""
     return db.session.get(User, int(user_id))
 
 
 @app.before_request
 def require_active_account():
+    """Bloqueia o acesso de contas inativas."""
     if current_user.is_authenticated:
         # Verifica se o atributo existe no modelo User para evitar AttributeError
         if hasattr(current_user, 'is_active_account') and not current_user.is_active_account:
@@ -198,6 +205,7 @@ def require_active_account():
                 }), 403
             flash("Esta conta está bloqueada.", "danger")
             return redirect(url_for("login"))
+    return None
 
 
 # ==========================================================
@@ -352,6 +360,7 @@ def login():
 @app.route("/logout", methods=["GET", "POST"])
 @login_required
 def logout():
+    """Log out the current user and redirect to the login page."""
     logout_user()
     flash("Sessão terminada com sucesso.", "info")
     return redirect(url_for("login"))
@@ -673,6 +682,7 @@ def api_state():
 @app.route("/admin")
 @admin_required
 def admin():
+    """Exibe a página de administração com a lista de usuários."""
     users = User.query.order_by(User.created_at.desc()).all()
     return render_template("admin.html", users=users)
 
@@ -680,6 +690,7 @@ def admin():
 @app.route("/admin/users/<int:user_id>/status", methods=["POST"])
 @admin_required
 def admin_user_status(user_id):
+    """Atualiza o status de ativação de uma conta de usuário."""
     user = db.session.get(User, user_id)
     if not user:
         abort(404)
@@ -704,6 +715,7 @@ def admin_user_status(user_id):
 @app.route("/admin/users/<int:user_id>/delete", methods=["POST"])
 @admin_required
 def admin_user_delete(user_id):
+    """Exclui uma conta de usuário pelo identificador informado."""
     user = db.session.get(User, user_id)
     if not user:
         abort(404)
@@ -764,6 +776,7 @@ def criar_admin(email, password):
 
 @app.errorhandler(403)
 def forbidden(_error):
+    """Return a JSON or HTML message when access is denied."""
     if request.path.startswith("/api/"):
         return jsonify({"success": False, "error": "Acesso negado."}), 403
     return "Acesso negado.", 403
@@ -771,6 +784,7 @@ def forbidden(_error):
 
 @app.errorhandler(404)
 def not_found(_error):
+    """Return a JSON or HTML message when a route is not found."""
     if request.path.startswith("/api/"):
         return jsonify({"success": False, "error": "Recurso não encontrado."}), 404
     return "Página não encontrada.", 404
