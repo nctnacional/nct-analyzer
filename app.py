@@ -789,7 +789,5 @@ def handle_exception(e):
     return f"<h3>Erro Crítico Detalhado:</h3><pre>{traceback.format_exc()}</pre>", 500
 
 if __name__ == "__main__":
-    # Apenas para testes locais. Em produção, use um servidor WSGI
-    # e HTTPS fornecido pela hospedagem.
-    app.run(host="127.0.0.1", port=8000, debug=False)
-    
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
