@@ -333,11 +333,13 @@ def login():
 
         user = User.query.filter_by(email=email).first()
 
-        if (
-            user
+      if (
+            user 
             and check_password_hash(user.password_hash, password)
-            and user.is_active_account
         ):
+            login_user(user)
+            return redirect(url_for("index"))
+        
             login_user(user)
             return redirect(url_for("index"))
 
