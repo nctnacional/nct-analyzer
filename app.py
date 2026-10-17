@@ -35,35 +35,36 @@ app.config['WTF_CSRF_ENABLED'] = False
 
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "")
 
+# =======================================================
+# =======================================================
 
 
 import os
 from flask_sqlalchemy import SQLAlchemy
 
-database_url = os.environ.get("DATABASE_URL")
+raw_db_url = os.environ.get("DATABASE_URL", "").strip().strip('"').strip("'")
 
-if database_url:
-    database_url = str(database_url).strip().strip('"').strip("'")
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
-    if "postgresql://" in database_url and "psycopg2" not in database_url:
-        database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+# Tratamento e sanitização rigorosa da URL
+if raw_db_url and "://" in raw_db_url:
+    if raw_db_url.startswith("postgres://"):
+        raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
+    if "postgresql://" in raw_db_url and "psycopg2" not in raw_db_url:
+        raw_db_url = raw_db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    final_db_url = raw_db_url
 else:
-    database_url = "sqlite:///nct_online.db"
+    # Se a variável estiver vazia ou inválida, usa SQLite local com segurança
+    final_db_url = "sqlite:///nct_online.db"
 
-app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+app.config["SQLALCHEMY_DATABASE_URI"] = final_db_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# Inicialização com rede de segurança absoluta
-db = SQLAlchemy()
-try:
-    db.init_app(app)
-except Exception as e:
-    print(f"AVISO: Erro ao iniciar base de dados externa ({e}). A usar SQLite de fallback.")
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///nct_online.db"
-    db = SQLAlchemy(app)
+# Inicialização ÚNICA do banco de dados para evitar "already registered"
+db = SQLAlchemy(app)
 
 
+
+# =======================================================
+# =======================================================
 
 
 if not app.config["SECRET_KEY"]:
