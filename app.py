@@ -35,23 +35,22 @@ app.config['WTF_CSRF_ENABLED'] = False
 app.config['WTF_CSRF_ENABLED'] = False
 
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "")
+
+
 import os
 
 database_url = os.environ.get("DATABASE_URL")
 
-if database_url:
-    # Limpa espaços, plicas ou aspas que possam corromper a string no Render
-    database_url = str(database_url).strip().strip('"').strip("'")
-    
+# Se houver DATABASE_URL e for válida, usa-a; caso contrário, usa SQLite local robusto para produção
+if database_url and database_url.strip():
+    database_url = database_url.strip().strip('"').strip("'")
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
-        
     if "postgresql://" in database_url and "psycopg2" not in database_url:
         database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 else:
     database_url = "sqlite:///nct_online.db"
 
-# Atribuição segura ao Flask
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
