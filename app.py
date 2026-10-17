@@ -276,6 +276,12 @@ def api_error(message, status=400):
 # CADASTRO E LOGIN
 # ==========================================================
 
+@@app.route("/")
+def index():
+    if current_user.is_authenticated:
+        return render_template("index.html")
+    return redirect(url_for("login"))
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if current_user.is_authenticated:
@@ -285,23 +291,18 @@ def register():
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
 
-        if not valid_email(email):
-            flash("E-mail inválido.", "danger")
-            return render_template("register.html")
-
         if len(password) < 12:
-            flash("Use uma senha com pelo menos 12 caracteres.", "danger")
+            flash("Utilize uma senha com pelo menos 12 caracteres.", "danger")
             return render_template("register.html")
 
         if User.query.filter_by(email=email).first():
-            flash("Este e-mail já está cadastrado.", "danger")
+            flash("Este e-mail já está registado.", "danger")
             return render_template("register.html")
 
         try:
             user = User(
                 email=email,
                 password_hash=generate_password_hash(password),
-                is_admin=False,
                 is_active_account=True
             )
             db.session.add(user)
@@ -309,11 +310,11 @@ def register():
             db.session.add(UserSettings(user_id=user.id))
             db.session.commit()
 
-            flash("Conta criada com sucesso! Faça login para continuar.", "success")
+            flash("Conta criada com sucesso! Faça login.", "success")
             return redirect(url_for("login"))
         except Exception as e:
             db.session.rollback()
-            flash(f"Erro no cadastro: {str(e)}", "danger")
+            flash(f"Erro ao criar conta: {str(e)}", "danger")
 
     return render_template("register.html")
 
@@ -338,14 +339,6 @@ def login():
     except Exception as e:
         import traceback
         return f"<h3>Erro detalhado no Servidor:</h3><pre>{traceback.format_exc()}</pre>", 500
-
-
-
-@app.route("/")
-def index():
-    if current_user.is_authenticated:
-        return render_template("index.html")  # ou o seu painel principal
-    return redirect(url_for("login"))
 
 
 # ==========================================================
