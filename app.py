@@ -276,7 +276,7 @@ def api_error(message, status=400):
 # CADASTRO E LOGIN
 # ==========================================================
 
-@@app.route("/")
+@app.route("/")
 def index():
     if current_user.is_authenticated:
         return render_template("index.html")
