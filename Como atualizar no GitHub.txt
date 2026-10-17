@@ -7,8 +7,8 @@ i_SWqEQHCXh0VzgL5oudafbod10IBlQLwLgune2fEStrhpVSdnCAxNUETdSNUAtv
 
 salvamento 
 
-git add templates/register.html
-git commit -m "Estilizar pagina de cadastro com Tailwind CSS"
+git add .
+git commit -m "Descrição da alteração que fez"
 git push origin main
 
 

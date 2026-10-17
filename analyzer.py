@@ -35,10 +35,10 @@ def safe_float(value, default=0.0):
     try:
         result = float(value)
 
-        if not isfinite(result):
+        if not isfinite(converted_value):
             return default
 
-        return result
+        return converted_value
 
     except (TypeError, ValueError):
         return default
