@@ -337,11 +337,10 @@ def login():
 
 
 
-@app.route("/logout", methods=["POST"])
-
-@login_required
-def logout():
-    logout_user()
+@app.route("/")
+def index():
+    if current_user.is_authenticated:
+        return render_template("index.html")  # ou o seu painel principal
     return redirect(url_for("login"))
 
 
