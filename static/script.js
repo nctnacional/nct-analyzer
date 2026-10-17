@@ -905,39 +905,50 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 1. Ouvinte para os botões de SALVAR CHAVE (ex: data-save-key="1")
     document.querySelectorAll("[data-save-key]").forEach(button => {
-        button.addEventListener("click", async () => {
-            const keyNum = button.getAttribute("data-save-key");
-            const input = $(`api-key-${keyNum}`); // Usa o seletor $() definido no seu script
-            if (!input) return;
+    button.addEventListener("click", async () => {
+        const keyNum = button.getAttribute("data-save-key");
+        const input = document.getElementById(`api-key-${keyNum}`);
+        if (!input) return;
 
-            const keyValue = input.value.trim();
-            if (!keyValue) {
-                showMessage("key-results", "Digite uma chave antes de salvar.", "warning");
-                return;
+        const keyValue = input.value.trim();
+        if (!keyValue) {
+            alert("Digite uma chave antes de salvar.");
+            return;
+        }
+
+        button.textContent = "Salvando...";
+        button.disabled = true;
+
+        try {
+            // Obtém o token CSRF se houver no documento
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
+
+            const response = await fetch(`/api/keys/${keyNum}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrfToken
+                },
+                body: JSON.stringify({ api_key: keyValue, key: keyValue })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                alert(data.message || `Chave ${keyNum} salva com sucesso!`);
+                location.reload();
+            } else {
+                alert(data.error || data.message || "Erro ao salvar a chave.");
+                button.textContent = "Salvar";
+                button.disabled = false;
             }
-
-            setLoading(button, true, "Salvando...");
-
-            try {
-                // Usa a função api() nativa do seu script para enviar com segurança e CSRF
-                // Substitua o corpo do fetch de salvamento por este:
-const data = await api(`/api/keys/${keyNum}`, {
-    method: "POST",
-    body: JSON.stringify({ api_key: keyValue, key: keyValue })
-});
-
-                input.value = ""; // Limpa o campo por segurança
-                showMessage("key-results", data.message || `Chave ${keyNum} salva com sucesso!`, "success");
-                
-                if (typeof loadConfig === "function") loadConfig();
-                if (typeof refreshState === "function") refreshState();
-            } catch (error) {
-                showMessage("key-results", `Erro ao salvar chave: ${error.message || error}`, "error");
-            } finally {
-                setLoading(button, false);
-            }
-        });
+        } catch (err) {
+            alert("Erro ao comunicar com o servidor: " + err.message);
+            button.textContent = "Salvar";
+            button.disabled = false;
+        }
     });
+});
 
     // 2. Ouvinte para o botão INICIAR e PARAR Análise
     document.querySelectorAll("button").forEach(btn => {
