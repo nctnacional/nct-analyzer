@@ -58,24 +58,34 @@
     <p class="mt-1 text-[11px] text-slate-500">Utilize uma senha exclusiva e difícil de adivinhar.</p>
 </div>
 
-<!-- Campo Confirmar Senha com Olhinho -->
-<div class="mt-4">
-    <label for="confirm_password" class="block text-xs font-medium text-slate-300 mb-1">Confirmar senha</label>
-    <div class="relative">
-        <input id="confirm_password" name="confirm_password" type="password" required
-               class="appearance-none rounded-xl relative block w-full pl-4 pr-12 py-3 bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-               placeholder="Digite a senha novamente">
-        <!-- Botão do Olhinho 2 -->
-        <button type="button" onclick="togglePassword('confirm_password', 'eye-icon-2')" class="absolute right-3 top-3.5 text-gray-400 hover:text-white">
-            <svg id="eye-icon-2" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-        </button>
-    </div>
+<!-- Confirmar Senha com Olhinho -->
+        <div class="mt-4">
+            <label for="confirm_password" class="block text-xs font-medium text-slate-300 mb-1">Confirmar senha</label>
+            <div class="relative">
+                <input id="confirm_password" name="confirm_password" type="password" required
+                       class="appearance-none rounded-xl relative block w-full pl-4 pr-12 py-3 bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                       placeholder="Digite a senha novamente">
+                <!-- Botão do Olhinho 2 -->
+                <button type="button" onclick="togglePassword('confirm_password', 'eye-icon-2')" class="absolute right-3 top-3.5 text-gray-400 hover:text-white">
+                    <svg id="eye-icon-2" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Botão de Finalizar Cadastro -->
+        <div class="mt-6">
+            <button type="submit"
+                    class="w-full py-3 px-4 rounded-xl text-white bg-indigo-600 hover:bg-indigo-500 font-medium transition duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                Criar minha conta
+            </button>
+        </div>
+    </form>
 </div>
 
-<!-- Script Universal para alternar qualquer campo de senha -->
+<!-- Script isolado corretamente dentro da tag script -->
 <script>
 function togglePassword(inputId, iconId) {
     const input = document.getElementById(inputId);
@@ -83,19 +93,8 @@ function togglePassword(inputId, iconId) {
     
     if (input.type === 'password') {
         input.type = 'text';
-        icon.classList.add('text-indigo-400');
     } else {
         input.type = 'password';
-        icon.classList.remove('text-indigo-400');
     }
 }
 </script>
-        function togglePassword(fieldId, iconId) {
-            const passwordField = document.getElementById(fieldId);
-            const icon = document.getElementById(iconId);
-            if (passwordField.type === "password") {
-                passwordField.type = "text";
-                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a10.032 10.032 0 012.261-3.791m4.22-2.42A9.956 9.956 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21M3 3l18 18" />';
-            } else {
-                passwordField.type = "password";
-                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3
