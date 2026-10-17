@@ -284,42 +284,46 @@ def index():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-        confirm_password = request.form.get("confirm_password", "")
+    try:  # <--- O try deve abrir aqui no começo da função
+        if current_user.is_authenticated:
+            return redirect(url_for("index"))
 
-        if not email or not password or not confirm_password:
-            flash("Preencha todos os campos.", "danger")
-            return render_template("register.html")
+        if request.method == "POST":
+            email = request.form.get("email", "").strip().lower()
+            password = request.form.get("password", "")
+            confirm_password = request.form.get("confirm_password", "")
 
-        if password != confirm_password:
-            flash("As senhas não conferem.", "danger")
-            return render_template("register.html")
+            if not email or not password or not confirm_password:
+                flash("Preencha todos os campos.", "danger")
+                return render_template("register.html")
 
-        existing_user = User.query.filter_by(email=email).first()
-        if existing_user:
-            flash("Este e-mail já está cadastrado.", "danger")
-            return render_template("register.html")
+            if password != confirm_password:
+                flash("As senhas não conferem.", "danger")
+                return render_template("register.html")
 
-        hashed_password = generate_password_hash(password)
-        new_user = User(email=email, password_hash=hashed_password)
-        db.session.add(new_user)
-        db.session.commit()
+            existing_user = User.query.filter_by(email=email).first()
+            if existing_user:
+                flash("Este e-mail já está cadastrado.", "danger")
+                return render_template("register.html")
 
-        flash("Cadastro realizado com sucesso! Faça login.", "success")
-        return redirect(url_for("login"))
+            hashed_password = generate_password_hash(password)
+            new_user = User(email=email, password_hash=hashed_password)
+            db.session.add(new_user)
+            db.session.commit()
 
-    return render_template("register.html")
-        
-except Exception as e:
+            flash("Cadastro realizado com sucesso! Faça login.", "success")
+            return redirect(url_for("login"))
+
+        return render_template("register.html")
+
+    except Exception as e:  # <--- O except agora tem o seu par correspondente em cima
         db.session.rollback()
         flash(f"Erro no cadastro: {str(e)}", "danger")
         return render_template("register.html")
 
 @app.route("/login", methods=["GET", "POST"])
 @csrf.exempt
-def login():
+def login():   
     if current_user.is_authenticated:
         return redirect(url_for("index"))
 
