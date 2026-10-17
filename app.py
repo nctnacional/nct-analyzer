@@ -24,6 +24,7 @@ from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import SQLAlchemyError
+from data_source import TwelveDataSource
 
 
 app = Flask(__name__)
@@ -80,12 +81,13 @@ try:
     if not encryption_key:
         raise ValueError("Chave vazia")
     cipher = Fernet(encryption_key.encode("utf-8"))
-except Exception:
+except ValueError:
     # Fallback automático: se a chave do ambiente estiver ausente ou inválida, 
     # gera uma chave Fernet válida em tempo de execução para evitar falhas no deploy.
     cipher = Fernet(Fernet.generate_key())
 
 def encrypt_secret(value):
+    """Encrypt a secret value with the configured Fernet cipher."""
     if not value:
         return None
     return cipher.encrypt(value.encode("utf-8")).decode("utf-8")
@@ -228,6 +230,7 @@ def get_settings(user_id=None):
 
 
 def settings_to_dict(settings):
+    """Converte as configurações do usuário em um dicionário."""
     return {
         "timeframe": settings.timeframe,
         "window_candles": settings.window_candles,
@@ -253,6 +256,7 @@ def get_user_api_keys(settings):
 
 
 def admin_required(view):
+    """Restrict access to administrators only."""
     @wraps(view)
     @login_required
     def wrapped(*args, **kwargs):
@@ -263,6 +267,7 @@ def admin_required(view):
 
 
 def valid_email(email):
+    """Return whether the supplied value has a valid email format."""
     email = (email or "").strip().lower()
     return (
         len(email) <= 254
@@ -271,6 +276,7 @@ def valid_email(email):
 
 
 def api_error(message, status=400):
+    """Return a JSON error payload for API responses."""
     return jsonify({"success": False, "error": message}), status
 
 
@@ -280,6 +286,7 @@ def api_error(message, status=400):
 
 @app.route("/")
 def index():
+    """Render the dashboard for authenticated users or redirect to login."""
     if current_user.is_authenticated:
         return render_template("dashboard.html")  # alterado para dashboard.html
     return redirect(url_for("login"))
@@ -287,6 +294,7 @@ def index():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
+    """Register a new user account."""
     if current_user.is_authenticated:
         return redirect(url_for("index"))
 
@@ -313,7 +321,7 @@ def register():
             flash("Conta criada com sucesso! Faça login para continuar.", "success")
             return redirect(url_for("login"))
 
-        except Exception as e:
+        except SQLAlchemyError as e:
             db.session.rollback()
             flash(f"Erro ao criar conta: {str(e)}", "danger")
             return render_template("register.html")
@@ -322,6 +330,7 @@ def register():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    """Authenticate a user and render or redirect from the login page."""
     try:
         if current_user.is_authenticated:
             return redirect(url_for("index"))
@@ -338,15 +347,17 @@ def login():
                 flash("E-mail ou senha inválidos.", "danger")
 
         return render_template("login.html")
-    
+    except SQLAlchemyError as e:
+        flash(f"Erro ao fazer login: {str(e)}", "danger")
+        return render_template("login.html")
+
 @app.route("/logout")
 @login_required
 def logout():
+    """Log out the current user and redirect to the login page."""
     logout_user()
     flash("Sessão terminada com sucesso.", "info")
     return redirect(url_for("login"))
-    
-
 
 # ==========================================================
 # PAINEL PRINCIPAL
@@ -355,107 +366,127 @@ def logout():
 @app.route("/dashboard")
 @login_required
 def dashboard():
+    """Render the main dashboard for the authenticated user."""
     return render_template("dashboard.html")
 
 
-@app.route("/api/config", methods=["GET", "POST"])
-@login_required
-def api_config():
-    settings = get_settings()
+def _api_config_response(settings):
+    """Build the configuration response, including masked API keys."""
+    data = settings_to_dict(settings)
+    encrypted_values = [
+        settings.api_key_1,
+        settings.api_key_2,
+        settings.api_key_3,
+        settings.api_key_4,
+    ]
+    data["api_keys"] = [
+        {
+            "number": i + 1,
+            "configured": bool(value),
+            "masked": mask_secret(decrypt_secret(value)) if value else "",
+        }
+        for i, value in enumerate(encrypted_values)
+    ]
+    return jsonify(data)
 
-    if request.method == "GET":
-        data = settings_to_dict(settings)
-        encrypted_values = [
-            settings.api_key_1,
-            settings.api_key_2,
-            settings.api_key_3,
-            settings.api_key_4,
-        ]
-        data["api_keys"] = [
-            {
-                "number": i + 1,
-                "configured": bool(value),
-                "masked": mask_secret(decrypt_secret(value)) if value else "",
-            }
-            for i, value in enumerate(encrypted_values)
-        ]
-        return jsonify(data)
 
-    data = request.get_json(silent=True) or {}
+def _parse_api_config_numbers(data, settings):
+    """Parse and validate numeric configuration fields."""
+    try:
+        values = {
+            "window": int(data.get("window_candles", settings.window_candles)),
+            "leaders": int(data.get("leaders", settings.leaders)),
+            "followers": int(data.get(
+                "followers_per_leader", settings.followers_per_leader
+            )),
+            "similarity": float(data.get(
+                "min_similarity", settings.min_similarity
+            )),
+            "update_seconds": int(data.get(
+                "update_seconds", settings.update_seconds
+            )),
+        }
+    except (TypeError, ValueError):
+        return None, "Um ou mais parâmetros possuem formato inválido."
 
+    limits = (
+        ("window", 5, 200, "A janela deve ficar entre 5 e 200 candles."),
+        ("leaders", 1, 10, "A quantidade de líderes deve ficar entre 1 e 10."),
+        ("followers", 1, 10, "Seguidores por líder deve ficar entre 1 e 10."),
+        ("similarity", 0, 100, "A similaridade deve ficar entre 0 e 100."),
+        ("update_seconds", 60, 3600,
+         "O intervalo de atualização deve ficar entre 60 e 3600 segundos."),
+    )
+    for name, minimum, maximum, message in limits:
+        if not minimum <= values[name] <= maximum:
+            return None, message
+    return values, None
+
+
+def _normalize_config_pairs(data, settings):
+    """Validate and normalize the configured market pairs."""
+    pairs = data.get("pairs", settings.pairs_json or DEFAULT_PAIRS)
+    if not isinstance(pairs, list) or len(pairs) > 100:
+        return None, "A lista de pares é inválida."
+
+    normalized = []
+    for pair in pairs:
+        if not isinstance(pair, str):
+            return None, "Há um símbolo inválido na lista."
+        pair = pair.strip().upper()
+        if not re.fullmatch(r"[A-Z0-9]{2,12}/[A-Z0-9]{2,12}", pair):
+            return None, f"Símbolo inválido: {pair[:30]}"
+        if pair not in normalized:
+            normalized.append(pair)
+    return normalized, None
+
+
+def _apply_config_api_keys(settings, incoming_keys):
+    """Apply explicitly supplied API keys, preserving empty positions."""
+    if not isinstance(incoming_keys, list) or len(incoming_keys) != 4:
+        return "Envie exatamente quatro posições para as chaves."
+
+    encrypted_names = ["api_key_1", "api_key_2", "api_key_3", "api_key_4"]
+    for name, value in zip(encrypted_names, incoming_keys):
+        if value is None or value == "":
+            continue
+        if not isinstance(value, str) or len(value) > 500:
+            return "Uma chave informada possui formato inválido."
+        setattr(settings, name, encrypt_secret(value.strip()))
+
+    if not settings.api_key_1:
+        return "A chave API 01 é obrigatória."
+    return None
+
+
+def _save_api_config(settings, data):
+    """Validate, persist, and return an API configuration update."""
     timeframe = data.get("timeframe", settings.timeframe)
     if timeframe not in ALLOWED_TIMEFRAMES:
         return api_error("Intervalo de análise inválido.")
 
-    try:
-        window = int(data.get("window_candles", settings.window_candles))
-        leaders = int(data.get("leaders", settings.leaders))
-        followers = int(
-            data.get("followers_per_leader", settings.followers_per_leader)
-        )
-        similarity = float(
-            data.get("min_similarity", settings.min_similarity)
-        )
-        update_seconds = int(
-            data.get("update_seconds", settings.update_seconds)
-        )
-    except (TypeError, ValueError):
-        return api_error("Um ou mais parâmetros possuem formato inválido.")
-
-    if not 5 <= window <= 200:
-        return api_error("A janela deve ficar entre 5 e 200 candles.")
-    if not 1 <= leaders <= 10:
-        return api_error("A quantidade de líderes deve ficar entre 1 e 10.")
-    if not 1 <= followers <= 10:
-        return api_error("Seguidores por líder deve ficar entre 1 e 10.")
-    if not 0 <= similarity <= 100:
-        return api_error("A similaridade deve ficar entre 0 e 100.")
-    if not 60 <= update_seconds <= 3600:
-        return api_error("O intervalo de atualização deve ficar entre 60 e 3600 segundos.")
-
-    pairs = data.get("pairs", settings.pairs_json or DEFAULT_PAIRS)
-    if not isinstance(pairs, list) or len(pairs) > 100:
-        return api_error("A lista de pares é inválida.")
-
-    normalized_pairs = []
-    for pair in pairs:
-        if not isinstance(pair, str):
-            return api_error("Há um símbolo inválido na lista.")
-        pair = pair.strip().upper()
-        if not re.fullmatch(r"[A-Z0-9]{2,12}/[A-Z0-9]{2,12}", pair):
-            return api_error(f"Símbolo inválido: {pair[:30]}")
-        if pair not in normalized_pairs:
-            normalized_pairs.append(pair)
+    numbers, error = _parse_api_config_numbers(data, settings)
+    if error:
+        return api_error(error)
+    normalized_pairs, error = _normalize_config_pairs(data, settings)
+    if error:
+        return api_error(error)
 
     # Chaves só são alteradas quando o usuário as envia explicitamente.
     # Campo vazio preserva a chave já salva. Para remover, use o endpoint
     # dedicado abaixo, evitando apagar chaves acidentalmente.
     incoming_keys = data.get("api_keys")
-
     if incoming_keys is not None:
-        if not isinstance(incoming_keys, list) or len(incoming_keys) != 4:
-            return api_error("Envie exatamente quatro posições para as chaves.")
-
-        encrypted_names = [
-            "api_key_1", "api_key_2", "api_key_3", "api_key_4"
-        ]
-
-        for name, value in zip(encrypted_names, incoming_keys):
-            if value is None or value == "":
-                continue
-            if not isinstance(value, str) or len(value) > 500:
-                return api_error("Uma chave informada possui formato inválido.")
-            setattr(settings, name, encrypt_secret(value.strip()))
-
-        if not settings.api_key_1:
-            return api_error("A chave API 01 é obrigatória.")
+        error = _apply_config_api_keys(settings, incoming_keys)
+        if error:
+            return api_error(error)
 
     settings.timeframe = timeframe
-    settings.window_candles = window
-    settings.leaders = leaders
-    settings.followers_per_leader = followers
-    settings.min_similarity = similarity
-    settings.update_seconds = update_seconds
+    settings.window_candles = numbers["window"]
+    settings.leaders = numbers["leaders"]
+    settings.followers_per_leader = numbers["followers"]
+    settings.min_similarity = numbers["similarity"]
+    settings.update_seconds = numbers["update_seconds"]
     settings.closed_candles_only = bool(
         data.get("closed_candles_only", settings.closed_candles_only)
     )
@@ -478,60 +509,66 @@ def api_config():
     })
 
 
+@app.route("/api/config", methods=["GET", "POST"])
+@login_required
+def api_config():
+    """Return or update the authenticated user's application settings."""
+    settings = get_settings()
+    if request.method == "GET":
+        return _api_config_response(settings)
+    return _save_api_config(settings, request.get_json(silent=True) or {})
+
+
 
 @app.route("/api/keys/<int:key_number>", methods=["POST", "DELETE"])
 @login_required
 def delete_api_key(key_number):
+    """Save or remove an API key for the authenticated user."""
     if key_number not in (1, 2, 3, 4):
-        return api_error("Número de chave inválido.")
+        response = api_error("Número de chave inválido.")
+    else:
+        settings = get_settings()
+        field = f"api_key_{key_number}"
 
-    settings = get_settings()
-    field = f"api_key_{key_number}"
+        if request.method == "POST":
+            data = request.get_json(silent=True) or {}
+            key = data.get("api_key") or data.get("key")
 
-    if request.method == "POST":
-        data = request.get_json(silent=True) or {}
-        key = data.get("api_key") or data.get("key")
+            if not isinstance(key, str) or not key.strip():
+                response = api_error("Informe uma chave de API válida.")
+            elif len(key.strip()) > 500:
+                response = api_error("A chave informada é muito longa.")
+            else:
+                setattr(settings, field, encrypt_secret(key.strip()))
+                try:
+                    db.session.commit()
+                    response = jsonify({
+                        "success": True,
+                        "message": f"Chave {key_number:02d} salva com segurança."
+                    })
+                except SQLAlchemyError:
+                    db.session.rollback()
+                    app.logger.exception("Falha ao salvar chave de API.")
+                    response = api_error("Não foi possível salvar a chave.", 500)
+        elif key_number == 1:
+            response = api_error("A API 01 é obrigatória e não pode ser removida.")
+        else:
+            setattr(settings, field, None)
+            try:
+                db.session.commit()
+                response = jsonify({"success": True, "message": "Chave removida."})
+            except SQLAlchemyError:
+                db.session.rollback()
+                app.logger.exception("Falha ao remover chave de API.")
+                response = api_error("Não foi possível remover a chave.", 500)
 
-        if not isinstance(key, str) or not key.strip():
-            return api_error("Informe uma chave de API válida.")
-
-        key = key.strip()
-
-        if len(key) > 500:
-            return api_error("A chave informada é muito longa.")
-
-        setattr(settings, field, encrypt_secret(key))
-
-        try:
-            db.session.commit()
-        except SQLAlchemyError:
-            db.session.rollback()
-            app.logger.exception("Falha ao salvar chave de API.")
-            return api_error("Não foi possível salvar a chave.", 500)
-
-        return jsonify({
-            "success": True,
-            "message": f"Chave {key_number:02d} salva com segurança."
-        })
-
-    if key_number == 1:
-        return api_error("A API 01 é obrigatória e não pode ser removida.")
-
-    setattr(settings, field, None)
-
-    try:
-        db.session.commit()
-    except SQLAlchemyError:
-        db.session.rollback()
-        app.logger.exception("Falha ao remover chave de API.")
-        return api_error("Não foi possível remover a chave.", 500)
-
-    return jsonify({"success": True, "message": "Chave removida."})
+    return response
 
 
 @app.route("/api/keys/test/<int:key_number>", methods=["POST"])
 @login_required
 def test_api_key(key_number):
+    """Testa a conexão usando a chave de API especificada."""
     if key_number not in (1, 2, 3, 4):
         return api_error("Número de chave inválido.")
 
@@ -541,8 +578,6 @@ def test_api_key(key_number):
 
     if not key:
         return api_error(f"A chave API 0{key_number} não está configurada.")
-
-    from data_source import TwelveDataSource
 
     source = TwelveDataSource(api_keys=[key])
     result = source.test_connection()
@@ -558,10 +593,9 @@ def test_api_key(key_number):
 @app.route("/api/keys/test-all", methods=["POST"])
 @login_required
 def test_all_api_keys():
+    """Testa a conexão de todas as chaves de API configuradas."""
     settings = get_settings()
     keys = get_user_api_keys(settings)
-
-    from data_source import TwelveDataSource
 
     results = []
 
@@ -592,6 +626,7 @@ def test_all_api_keys():
 @app.route("/api/toggle", methods=["POST"])
 @login_required
 def api_toggle():
+    """Ativa ou desativa a análise conforme a solicitação recebida."""
     settings = get_settings()
     data = request.get_json(silent=True) or {}
 
@@ -614,6 +649,7 @@ def api_toggle():
 @app.route("/api/state")
 @login_required
 def api_state():
+    """Retorna o estado atual da análise e as configurações do usuário."""
     settings = get_settings()
 
     return jsonify({
@@ -744,6 +780,7 @@ def not_found(_error):
 
 @app.errorhandler(Exception)
 def handle_exception(e):
+    """Handle unexpected application exceptions."""
     import traceback
     return f"<h3>Erro Crítico Detalhado:</h3><pre>{traceback.format_exc()}</pre>", 500
 
