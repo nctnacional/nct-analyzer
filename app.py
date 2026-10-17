@@ -35,16 +35,39 @@ app.config['WTF_CSRF_ENABLED'] = False
 
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "")
 
-database_url = os.environ.get("DATABASE_URL")
-print(f"DEBUG - DATABASE_URL lida do ambiente: {database_url}")
 
-if database_url:
-    database_url = database_url.strip().strip('"').strip("'")
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
-    if "postgresql://" in database_url and not "psycopg2" in database_url:
-        database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
-else:
+
+import os
+from urllib.parse import urlparse, quote_plus
+
+database_url = os.environ.get("DATABASE_URL")
+
+try:
+    if database_url:
+        database_url = str(database_url).strip().strip('"').strip("'")
+        
+        # Correção do protocolo antigo do Render/Heroku
+        if database_url.startswith("postgres://"):
+            database_url = database_url.replace("postgres://", "postgresql://", 1)
+            
+        # Tratamento seguro para URLs do PostgreSQL com carateres especiais na password
+        if "postgresql://" in database_url:
+            parsed = urlparse(database_url)
+            if parsed.password:
+                encoded_password = quote_plus(parsed.password)
+                # Reconstrói a URL com a password codificada em segurança
+                userinfo = f"{parsed.username}:{encoded_password}"
+                if parsed.hostname:
+                    hostinfo = parsed.hostname
+                    if parsed.port:
+                        hostinfo += f":{parsed.port}"
+                    database_url = f"postgresql+psycopg2://{userinfo}@{hostinfo}{parsed.path}"
+            elif "psycopg2" not in database_url:
+                database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    else:
+        database_url = "sqlite:///nct_online.db"
+except Exception as e:
+    print(f"AVISO: Erro ao processar DATABASE_URL ({e}), a usar SQLite de segurança.")
     database_url = "sqlite:///nct_online.db"
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
