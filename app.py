@@ -288,34 +288,33 @@ def register():
         return redirect(url_for("index"))
 
     if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-
-        if len(password) < 12:
-            flash("Utilize uma senha com pelo menos 12 caracteres.", "danger")
-            return render_template("register.html")
-
-        if User.query.filter_by(email=email).first():
-            flash("Este e-mail já está registado.", "danger")
-            return render_template("register.html")
-
         try:
-            # Criação básica e segura compatível com qualquer estrutura de User
+            email = request.form.get("email", "").strip().lower()
+            password = request.form.get("password", "")
+
+            if len(password) < 12:
+                flash("Utilize uma senha com pelo menos 12 caracteres.", "danger")
+                return render_template("register.html")
+
+            if User.query.filter_by(email=email).first():
+                flash("Este e-mail já está registado.", "danger")
+                return render_template("register.html")
+
             user = User(
                 email=email,
                 password_hash=generate_password_hash(password)
             )
-            
             db.session.add(user)
             db.session.commit()
 
-            flash("Conta criada com sucesso! Faça login para continuar.", "success")
+            flash("Conta criada com sucesso! Faça login.", "success")
             return redirect(url_for("login"))
             
         except Exception as e:
             db.session.rollback()
-            flash(f"Erro ao criar conta: {str(e)}", "danger")
-            return render_template("register.html")
+            import traceback
+            # Exibe o erro técnico exato no ecrã para sabermos o que falhou
+            return f"<h3>Erro Técnico Detalhado:</h3><pre>{traceback.format_exc()}</pre>", 500
 
     return render_template("register.html")
 
