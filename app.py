@@ -322,10 +322,10 @@ def register():
         return render_template("register.html")
 
 @app.route("/login", methods=["GET", "POST"])
-@csrf.exempt
-def login():   
+def login():
     if current_user.is_authenticated:
         return redirect(url_for("index"))
+    # ... continuação normal da rota de login
 
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
