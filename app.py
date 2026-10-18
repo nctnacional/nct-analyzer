@@ -373,13 +373,49 @@ def dashboard():
     return render_template("dashboard.html")
 
 
-@app.route("/api/config", methods=["GET", "POST"])
+@app.route('/api/config', methods=['GET', 'POST'])
 @login_required
 def api_config():
-    settings = get_settings()
-    if request.method == "GET":
-        return api_config_response(settings)
-    return save_api_config(settings, request.get_json(silent=True) or {})
+    user_settings = UserSettings.query.filter_by(user_id=current_user.id).first()
+    if not user_settings:
+        user_settings = UserSettings(user_id=current_user.id)
+        db.session.add(user_settings)
+        db.session.commit()
+
+    if request.method == 'POST':
+        data = request.get_json() or {}
+        user_settings.timeframe = data.get('timeframe', user_settings.timeframe)
+        user_settings.window_candles = int(data.get('window_candles', user_settings.window_candles))
+        user_settings.leaders = int(data.get('leaders', user_settings.leaders))
+        user_settings.followers_per_leader = int(data.get('followers_per_leader', user_settings.followers_per_leader))
+        user_settings.min_similarity = float(data.get('min_similarity', user_settings.min_similarity))
+        user_settings.update_seconds = int(data.get('update_seconds', user_settings.update_seconds))
+        user_settings.closed_candles_only = bool(data.get('closed_candles_only', user_settings.closed_candles_only))
+        user_settings.automatic_pairs = bool(data.get('automatic_pairs', user_settings.automatic_pairs))
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Configurações salvas com sucesso!'})
+
+    # Retorno do GET: Inclui as configurações e o status mascarado das chaves
+    return jsonify({
+        'success': True,
+        'config': {
+            'timeframe': user_settings.timeframe,
+            'window_candles': user_settings.window_candles,
+            'leaders': user_settings.leaders,
+            'followers_per_leader': user_settings.followers_per_leader,
+            'min_similarity': user_settings.min_similarity,
+            'update_seconds': user_settings.update_seconds,
+            'closed_candles_only': user_settings.closed_candles_only,
+            'automatic_pairs': user_settings.automatic_pairs,
+            'api_keys': [
+                {'number': 1, 'configured': bool(user_settings.api_key_1)},
+                {'number': 2, 'configured': bool(user_settings.api_key_2)},
+                {'number': 3, 'configured': bool(user_settings.api_key_3)},
+                {'number': 4, 'configured': bool(user_settings.api_key_4)},
+            ]
+        }
+    })
 
 
 @app.route("/api/keys/<int:key_num>", methods=["POST"])

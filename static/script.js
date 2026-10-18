@@ -252,31 +252,51 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
 
-    function fillConfigForm(config = {}) {
-        const fields = {
-            timeframe: config.timeframe ?? "5min",
-            window_candles: config.window_candles ?? 24,
-            leaders: config.leaders ?? 4,
-            followers_per_leader:
-                config.followers_per_leader ?? 6,
-            min_similarity: config.min_similarity ?? 85,
-            update_seconds: config.update_seconds ?? 180
-        };
+ function fillConfigForm(config = {}) {
+    const fields = {
+        timeframe: config.timeframe ?? "5min",
+        window_candles: config.window_candles ?? 12,
+        leaders: config.leaders ?? 2,
+        followers_per_leader: config.followers_per_leader ?? 3,
+        min_similarity: config.min_similarity ?? 50,
+        update_seconds: config.update_seconds ?? 240
+    };
 
-        for (const [id, value] of Object.entries(fields)) {
-            if ($(id))$(id).value = value;
-        }
+    for (const [id, value] of Object.entries(fields)) {
+        if ($(id))$(id).value = value;
+    }
 
-        if ($("closed_candles_only")) {
-            $("closed_candles_only").checked =
-                config.closed_candles_only ?? true;
-        }
+    if ($("closed_candles_only")) {
+        $("closed_candles_only").checked = config.closed_candles_only ?? true;
+    }
 
-        if ($("automatic_pairs")) {
-            $("automatic_pairs").checked =
-                config.automatic_pairs ?? true;
+    if ($("automatic_pairs")) {
+        $("automatic_pairs").checked = config.automatic_pairs ?? true;
+    }
+}
+
+function updateKeyStatuses(config = {}) {
+    const keys = config.api_keys || [];
+    for (let number = 1; number <= 4; number++) {
+        const entry = Array.isArray(keys) 
+            ? keys.find(k => Number(k.number) === number) 
+            : null;
+
+        const isConfigured = entry ? entry.configured : false;
+        const input = $(`api-key-${number}`);
+        const statusSpan = $(`key-status-${number}`);
+
+        if (isConfigured) {
+            if (input && (!input.value || input.value === "")) {
+                input.value = "••••••••••••••••"; // Exibe máscara visual para mostrar que já existe chave salva
+            }
+            if (statusSpan) {
+                statusSpan.textContent = "Configurada ✓";
+                statusSpan.className = "text-[9px] text-emerald-400 font-semibold";
+            }
         }
     }
+}
 
     async function loadConfig() {
         try {
