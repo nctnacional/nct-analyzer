@@ -534,47 +534,35 @@ def api_config():
 
 
 
-@app.route("/api/keys/<int:key_number>", methods=["POST", "DELETE"])
+@app.route("/api/keys/<int:key_num>", methods=["POST"])
 @login_required
-def delete_api_key(key_number):
-    """Save or remove an API key for the authenticated user."""
-    if key_number not in (1, 2, 3, 4):
-        response = api_error("Número de chave inválido.")
+def save_api_key(key_num):
+    data = request.get_json(silent=True) or {}
+    key_value = (data.get("api_key") or data.get("key") or "").strip()
+    
+    if not key_value:
+        return jsonify({"success": False, "error": "Informe uma chave de API válida."}), 400
+        
+    settings = get_settings()
+    
+    # Atribuição direta e segura com base no número exato da chave (1 a 4)
+    if key_num == 1:
+        settings.api_key_1 = key_value
+    elif key_num == 2:
+        settings.api_key_2 = key_value
+    elif key_num == 3:
+        settings.api_key_3 = key_value
+    elif key_num == 4:
+        settings.api_key_4 = key_value
     else:
-        settings = get_settings()
-        field = f"api_key_{key_number}"
+        return jsonify({"success": False, "error": "Número de chave inválido."}), 400
 
-        if request.method == "POST":
-            data = request.get_json(silent=True) or {}
-            key = data.get("api_key") or data.get("key")
-
-            if not isinstance(key, str) or not key.strip():
-                response = api_error("Informe uma chave de API válida.")
-            elif len(key.strip()) > 500:
-                response = api_error("A chave informada é muito longa.")
-            else:
-                setattr(settings, field, encrypt_secret(key.strip()))
-                try:
-                    db.session.commit()
-                    response = jsonify({
-                        "success": True,
-                        "message": f"Chave {key_number:02d} salva com segurança."
-                    })
-                except SQLAlchemyError:
-                    db.session.rollback()
-                    app.logger.exception("Falha ao salvar chave de API.")
-                    response = api_error("Não foi possível salvar a chave.", 500)
-        elif key_number == 1:
-            response = api_error("A API 01 é obrigatória e não pode ser removida.")
-        else:
-            setattr(settings, field, None)
-            try:
-                db.session.commit()
-                response = jsonify({"success": True, "message": "Chave removida."})
-            except SQLAlchemyError:
-                db.session.rollback()
-                app.logger.exception("Falha ao remover chave de API.")
-                response = api_error("Não foi possível remover a chave.", 500)
+    try:
+        db.session.commit()
+        return jsonify({"success": True, "message": f"Chave 0{key_num} salva com sucesso!"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
 
     return response
 
