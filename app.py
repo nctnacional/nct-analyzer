@@ -438,7 +438,8 @@ def api_toggle():
 def api_state():
     settings = get_settings()
     config = settings_to_dict(settings)
-    config["api_keys_count"] = sum(bool(key) for key in get_user_api_keys(settings))
+    keys = get_user_api_keys(settings)
+    config["api_keys_count"] = sum(1 for key in keys if key)
     return jsonify({
         "success": True,
         "user": {"email": current_user.email, "is_admin": current_user.is_admin},
