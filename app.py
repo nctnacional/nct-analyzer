@@ -621,3 +621,41 @@ def handle_exception(error):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+import threading
+import time
+from data_source import TwelveDataSource
+from analyzer import analyze_market
+
+def background_analyzer():
+    while True:
+        try:
+            with app.app_context():
+                settings_list = UserSettings.query.filter_by(analysis_enabled=True).all()
+                for settings in settings_list:
+                    keys = [decrypt_secret(getattr(settings, f)) for f in API_KEY_FIELDS]
+                    valid_keys = [k for k in keys if k]
+                    if not valid_keys:
+                        continue
+                    
+                    ds = TwelveDataSource(api_keys=valid_keys)
+                    pairs = settings.pairs_json or DEFAULT_PAIRS
+                    data = ds.get_candles_batch(pairs, interval=settings.timeframe, outputsize=settings.window_candles)
+                    
+                    if data:
+                        res = analyze_market(
+                            market_data=data,
+                            window=settings.window_candles,
+                            leaders=settings.leaders,
+                            followers_per_leader=settings.followers_per_leader,
+                            min_similarity=settings.min_similarity
+                        )
+                        settings.last_results_json = res
+                        settings.last_analysis_at = datetime.now(timezone.utc)
+                        settings.last_analysis_error = None
+                        db.session.commit()
+        except Exception as e:
+            app.logger.exception('Erro na thread de análise: %s', e)
+        time.sleep(30)
+
+analyzer_thread = threading.Thread(target=background_analyzer, daemon=True)
+analyzer_thread.start()
