@@ -1,0 +1,21 @@
+{
+    "timeframe": "5min",
+    "window_candles": 12,
+    "leaders": 4,
+    "followers_per_leader": 6,
+    "min_similarity": 50.0,
+    "closed_candles_only": true,
+    "update_seconds": 240,
+    "automatic_pairs": true,
+    "max_pairs_per_scan": 6,
+    "pair_filter": "major",
+    "pairs": [
+        "EUR/USD",
+        "GBP/USD",
+        "USD/JPY",
+        "USD/CHF",
+        "AUD/USD",
+        "USD/CAD",
+        "NZD/USD"
+    ]
+}

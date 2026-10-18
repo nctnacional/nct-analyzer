@@ -1,4 +1,3 @@
-
 import os
 import logging
 from typing import Optional, List, Dict, Any
@@ -111,12 +110,6 @@ class TwelveDataSource:
         params: Optional[Dict[str, Any]] = None,
         api_keys: Optional[List[str]] = None,
     ) -> Optional[Dict[str, Any]]:
-        """
-        Executa uma requisição.
-
-        Pode tentar outra chave configurada após erro de autenticação
-        ou limite. Não registra URLs, parâmetros ou chaves.
-        """
         keys = api_keys if api_keys is not None else self.api_keys
         keys = [key.strip() for key in keys if key and key.strip()]
 
@@ -131,6 +124,7 @@ class TwelveDataSource:
         last_error = None
         last_status = None
 
+        # Rotação inteligente por chave disponível
         for index, key in enumerate(keys):
             current_params = dict(request_params)
             current_params["apikey"] = key
@@ -154,14 +148,9 @@ class TwelveDataSource:
                         message = self._extract_error(payload)
                         last_error = message
 
-                        if (
-                            index < len(keys) - 1
-                            and self._is_key_or_limit_error(
-                                response.status_code, message
-                            )
-                        ):
+                        # Se estourou o limite desta chave, tenta imediatamente a próxima chave do usuário
+                        if index < len(keys) - 1 and self._is_key_or_limit_error(response.status_code, message):
                             continue
-
                         break
 
                     self.last_error = None
@@ -171,21 +160,13 @@ class TwelveDataSource:
                 message = self._extract_error(payload)
                 last_error = message
 
-                if (
-                    index < len(keys) - 1
-                    and self._is_key_or_limit_error(
-                        response.status_code, message
-                    )
-                ):
+                if index < len(keys) - 1 and self._is_key_or_limit_error(response.status_code, message):
                     continue
-
                 break
 
             except requests.Timeout:
                 last_error = "Tempo limite excedido ao consultar a Twelve Data."
                 last_status = None
-                # Falha de rede: tentar a próxima chave não garante
-                # que o problema seja da chave, mas permite nova tentativa.
                 if index < len(keys) - 1:
                     continue
                 break
