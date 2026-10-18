@@ -233,17 +233,17 @@ document.addEventListener("DOMContentLoaded", () => {
         return {
             timeframe: $("timeframe")?.value || "5min",
             window_candles: Number(
-                $("window_candles")?.value || 24
+                $("window_candles")?.value || 12
             ),
-            leaders: Number($("leaders")?.value || 4),
+            leaders: Number($("leaders")?.value || 2),
             followers_per_leader: Number(
-                $("followers_per_leader")?.value || 6
+                $("followers_per_leader")?.value || 3
             ),
             min_similarity: Number(
-                $("min_similarity")?.value || 85
+                $("min_similarity")?.value || 50
             ),
             update_seconds: Number(
-                $("update_seconds")?.value || 180
+                $("update_seconds")?.value || 240
             ),
             closed_candles_only:
                 $("closed_candles_only")?.checked ?? true,
@@ -252,51 +252,60 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
 
- function fillConfigForm(config = {}) {
-    const fields = {
-        timeframe: config.timeframe ?? "5min",
-        window_candles: config.window_candles ?? 12,
-        leaders: config.leaders ?? 2,
-        followers_per_leader: config.followers_per_leader ?? 3,
-        min_similarity: config.min_similarity ?? 50,
-        update_seconds: config.update_seconds ?? 240
-    };
+    function fillConfigForm(config = {}) {
+        const fields = {
+            timeframe: config.timeframe ?? "5min",
+            window_candles: config.window_candles ?? 12,
+            leaders: config.leaders ?? 2,
+            followers_per_leader: config.followers_per_leader ?? 3,
+            min_similarity: config.min_similarity ?? 50,
+            update_seconds: config.update_seconds ?? 240
+        };
 
-    for (const [id, value] of Object.entries(fields)) {
-        if ($(id))$(id).value = value;
-    }
+        for (const [id, value] of Object.entries(fields)) {
+            if ($(id))$(id).value = value;
+        }
 
-    if ($("closed_candles_only")) {
-        $("closed_candles_only").checked = config.closed_candles_only ?? true;
-    }
+        if ($("closed_candles_only")) {
+            $("closed_candles_only").checked = config.closed_candles_only ?? true;
+        }
 
-    if ($("automatic_pairs")) {
-        $("automatic_pairs").checked = config.automatic_pairs ?? true;
-    }
-}
-
-function updateKeyStatuses(config = {}) {
-    const keys = config.api_keys || [];
-    for (let number = 1; number <= 4; number++) {
-        const entry = Array.isArray(keys) 
-            ? keys.find(k => Number(k.number) === number) 
-            : null;
-
-        const isConfigured = entry ? entry.configured : false;
-        const input = $(`api-key-${number}`);
-        const statusSpan = $(`key-status-${number}`);
-
-        if (isConfigured) {
-            if (input && (!input.value || input.value === "")) {
-                input.value = "••••••••••••••••"; // Exibe máscara visual para mostrar que já existe chave salva
-            }
-            if (statusSpan) {
-                statusSpan.textContent = "Configurada ✓";
-                statusSpan.className = "text-[9px] text-emerald-400 font-semibold";
-            }
+        if ($("automatic_pairs")) {
+            $("automatic_pairs").checked = config.automatic_pairs ?? true;
         }
     }
-}
+
+    function updateKeyStatuses(config = {}) {
+        const keys = config.api_keys || [];
+        let configuredCount = 0;
+
+        for (let number = 1; number <= 4; number++) {
+            let isConfigured = false;
+
+            if (Array.isArray(keys)) {
+                const entry = keys.find((item) => Number(item?.number) === number);
+                isConfigured = Boolean(entry?.configured);
+            } else if (keys && typeof keys === "object") {
+                isConfigured = Boolean(keys[`api_key_${number}`] || keys[number]);
+            }
+
+            const input = $(`api-key-${number}`);
+            const statusSpan = $(`key-status-${number}`);
+
+            if (isConfigured) {
+                configuredCount++;
+                if (input && (!input.value || input.value === "")) {
+                    input.value = "••••••••••••••••";
+                }
+                if (statusSpan && statusSpan.textContent !== "Conectada ✓" && statusSpan.textContent !== "Falhou ✗") {
+                    statusSpan.textContent = "Configurada ✓";
+                    statusSpan.className = "text-[9px] text-emerald-400 font-semibold";
+                }
+            }
+        }
+
+        updateKeysCard(configuredCount);
+    }
 
     async function loadConfig() {
         try {
@@ -338,7 +347,7 @@ function updateKeyStatuses(config = {}) {
 
             showMessage(
                 "config-message",
-                response.message || "Configurações salvas.",
+                response.message || "Configurações salvas com sucesso!",
                 "success"
             );
 
@@ -372,23 +381,6 @@ function updateKeyStatuses(config = {}) {
 
         if (Array.isArray(keys)) {
             return keys.filter((item) => {
-                if (typeof item === "boolean") return item;
-
-                return Boolean(
-                    item &&
-                    (
-                        item.configured === true ||
-                        item.has_key === true ||
-                        item.saved === true ||
-                        item.status === "configured" ||
-                        item.status === "ok"
-                    )
-                );
-            }).length;
-        }
-
-        if (keys && typeof keys === "object") {
-            return Object.values(keys).filter((item) => {
                 if (typeof item === "boolean") return item;
 
                 return Boolean(
@@ -453,60 +445,6 @@ function updateKeyStatuses(config = {}) {
     // CHAVES DE API
     // =====================================================
 
-    function getKeyEntry(config, number) {
-        const keys = config.api_keys || config.keys || [];
-
-        if (Array.isArray(keys)) {
-            return (
-                keys.find((item) =>
-                    Number(
-                        item?.number ??
-                        item?.key_number ??
-                        item?.id
-                    ) === number
-                ) ||
-                keys[number - 1] ||
-                null
-            );
-        }
-
-        if (keys && typeof keys === "object") {
-            return (
-                keys[`api_key_${number}`] ??
-                keys[number] ??
-                null
-            );
-        }
-
-        return null;
-    }
-
-    function updateKeyStatuses(config = {}) {
-        for (let number = 1; number <= 4; number++) {
-            const entry = getKeyEntry(config, number);
-
-            const configured = Boolean(
-                entry === true ||
-                (
-                    entry &&
-                    (
-                        entry.configured === true ||
-                        entry.has_key === true ||
-                        entry.saved === true ||
-                        entry.status === "configured" ||
-                        entry.status === "ok"
-                    )
-                )
-            );
-
-            const statusSpan = $(`key-status-${number}`);
-            if (statusSpan && statusSpan.textContent !== "Conectada ✓" && statusSpan.textContent !== "Falhou ✗") {
-                statusSpan.textContent = configured ? "Configurada ✓" : "Não configurada";
-                statusSpan.className = configured ? "text-[9px] text-emerald-400 font-semibold" : "text-[9px] text-slate-500";
-            }
-        }
-    }
-
     async function saveKey(number) {
         const input = $(`api-key-${number}`);
         const button = document.querySelector(
@@ -515,10 +453,10 @@ function updateKeyStatuses(config = {}) {
 
         const key = input?.value.trim() || "";
 
-        if (!key) {
+        if (!key || key === "••••••••••••••••") {
             showMessage(
                 "key-results",
-                `Digite a chave da API ${number} antes de salvar.`,
+                `Digite uma nova chave da API ${number} antes de salvar.`,
                 "warning"
             );
             return;
@@ -531,8 +469,6 @@ function updateKeyStatuses(config = {}) {
                 method: "POST",
                 body: JSON.stringify({ api_key: key })
             });
-
-            if (input) input.value = "";
 
             showMessage(
                 "key-results",

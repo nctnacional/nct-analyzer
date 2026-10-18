@@ -1,6 +1,8 @@
 import os
 import re
 import logging
+import threading
+import time
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -17,6 +19,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from data_source import TwelveDataSource
+from analyzer import analyze_market
 from extensions import db
 
 load_dotenv()
@@ -203,111 +206,6 @@ def api_error(message, status=400):
     return jsonify({"success": False, "error": message}), status
 
 
-def api_config_response(settings):
-    data = settings_to_dict(settings)
-    keys_info = []
-    for i, field in enumerate(API_KEY_FIELDS, start=1):
-        decrypted = decrypt_secret(getattr(settings, field))
-        keys_info.append({"number": i, "configured": bool(decrypted), "masked": mask_secret(decrypted)})
-    data["api_keys"] = keys_info
-    data["api_keys_count"] = sum(1 for item in keys_info if item["configured"])
-    return jsonify(data)
-
-
-def parse_config_numbers(data, settings):
-    try:
-        values = {
-            "window": int(data.get("window_candles", settings.window_candles)),
-            "leaders": int(data.get("leaders", settings.leaders)),
-            "followers": int(data.get("followers_per_leader", settings.followers_per_leader)),
-            "similarity": float(data.get("min_similarity", settings.min_similarity)),
-            "update_seconds": int(data.get("update_seconds", settings.update_seconds)),
-        }
-    except (TypeError, ValueError):
-        return None, "Um ou mais parâmetros possuem formato inválido."
-    limits = [
-        ("window", 5, 200, "A janela deve ficar entre 5 e 200 candles."),
-        ("leaders", 1, 10, "A quantidade de líderes deve ficar entre 1 e 10."),
-        ("followers", 1, 10, "Seguidores por líder deve ficar entre 1 e 10."),
-        ("similarity", 0, 100, "A similaridade deve ficar entre 0 e 100."),
-        ("update_seconds", 60, 3600, "O intervalo de atualização deve ficar entre 60 e 3600 segundos."),
-    ]
-    for name, minimum, maximum, message in limits:
-        if not minimum <= values[name] <= maximum:
-            return None, message
-    return values, None
-
-
-def normalize_config_pairs(data, settings):
-    pairs = data.get("pairs", settings.pairs_json or DEFAULT_PAIRS)
-    if not isinstance(pairs, list) or len(pairs) > 100:
-        return None, "A lista de pares é inválida."
-    normalized = []
-    for pair in pairs:
-        if not isinstance(pair, str):
-            return None, "Há um símbolo inválido na lista."
-        pair = pair.strip().upper()
-        if not re.fullmatch(r"[A-Z0-9]{2,12}/[A-Z0-9]{2,12}", pair):
-            return None, f"Símbolo inválido: {pair[:30]}"
-        if pair not in normalized:
-            normalized.append(pair)
-    return normalized, None
-
-
-def save_api_config(settings, data):
-    timeframe = data.get("timeframe", settings.timeframe)
-    if timeframe not in ALLOWED_TIMEFRAMES:
-        return api_error("Intervalo de análise inválido.")
-    numbers, error = parse_config_numbers(data, settings)
-    if error:
-        return api_error(error)
-    pairs, error = normalize_config_pairs(data, settings)
-    if error:
-        return api_error(error)
-
-    incoming_keys = data.get("api_keys")
-    if incoming_keys is not None:
-        if not isinstance(incoming_keys, list) or len(incoming_keys) != 4:
-            return api_error("Envie exatamente quatro posições para as chaves.")
-        for field, value in zip(API_KEY_FIELDS, incoming_keys):
-            if value is None or value == "":
-                continue
-            if not isinstance(value, str) or not value.strip() or len(value) > 500:
-                return api_error("Uma chave informada possui formato inválido.")
-            setattr(settings, field, encrypt_secret(value.strip()))
-
-    settings.timeframe = timeframe
-    settings.window_candles = numbers["window"]
-    settings.leaders = numbers["leaders"]
-    settings.followers_per_leader = numbers["followers"]
-    settings.min_similarity = numbers["similarity"]
-    settings.update_seconds = numbers["update_seconds"]
-    settings.closed_candles_only = parse_bool(data.get("closed_candles_only", settings.closed_candles_only), settings.closed_candles_only)
-    settings.automatic_pairs = parse_bool(data.get("automatic_pairs", settings.automatic_pairs), settings.automatic_pairs)
-    settings.pairs_json = pairs or list(DEFAULT_PAIRS)
-    try:
-        db.session.commit()
-    except SQLAlchemyError:
-        db.session.rollback()
-        app.logger.exception("Falha ao salvar configurações.")
-        return api_error("Não foi possível salvar as configurações.", 500)
-    return jsonify({"success": True, "message": "Configurações salvas.", "config": settings_to_dict(settings)})
-
-
-def parse_bool(value, default=False):
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in ("true", "1", "yes", "on"):
-            return True
-        if lowered in ("false", "0", "no", "off"):
-            return False
-    if isinstance(value, (int, float)) and value in (0, 1):
-        return bool(value)
-    return bool(default)
-
-
 @app.route("/")
 def index():
     if current_user.is_authenticated:
@@ -396,7 +294,10 @@ def api_config():
         db.session.commit()
         return jsonify({'success': True, 'message': 'Configurações salvas com sucesso!'})
 
-    # Retorno do GET: Inclui as configurações e o status mascarado das chaves
+    keys_count = sum([
+        1 for k in [user_settings.api_key_1, user_settings.api_key_2, user_settings.api_key_3, user_settings.api_key_4] if k
+    ])
+
     return jsonify({
         'success': True,
         'config': {
@@ -408,6 +309,7 @@ def api_config():
             'update_seconds': user_settings.update_seconds,
             'closed_candles_only': user_settings.closed_candles_only,
             'automatic_pairs': user_settings.automatic_pairs,
+            'api_keys_count': keys_count,
             'api_keys': [
                 {'number': 1, 'configured': bool(user_settings.api_key_1)},
                 {'number': 2, 'configured': bool(user_settings.api_key_2)},
@@ -451,7 +353,7 @@ def test_one_key(key_num):
     data = request.get_json(silent=True) or {}
     key = data.get("api_key", data.get("key", "")).strip()
     
-    if not key:
+    if not key or key == "••••••••••••••••":
         key = get_user_api_keys(settings)[key_num - 1]
 
     if not key:
@@ -597,71 +499,6 @@ def admin_user_delete(user_id):
     return jsonify({"success": True})
 
 
-@app.cli.command("init-db")
-def init_db():
-    with app.app_context():
-        db.create_all()
-    click.echo("Tabelas criadas/verificadas.")
-
-
-@app.cli.command("criar-admin")
-@click.option("--email", prompt="E-mail do Admin", help="E-mail para a conta admin")
-@click.option("--password", prompt=True, hide_input=True, confirmation_prompt=True, help="Senha para a conta admin")
-def criar_admin(email, password):
-    email = email.strip().lower()
-    if not valid_email(email):
-        raise click.ClickException("E-mail inválido.")
-    if len(password) < 12:
-        raise click.ClickException("Use uma senha com pelo menos 12 caracteres.")
-    try:
-        user = User.query.filter_by(email=email).first()
-        if user is None:
-            user = User(email=email, password_hash=generate_password_hash(password), is_admin=True, is_active_account=True)
-            db.session.add(user)
-            db.session.flush()
-            db.session.add(UserSettings(user_id=user.id))
-        else:
-            user.password_hash = generate_password_hash(password)
-            user.is_admin = True
-            user.is_active_account = True
-        db.session.commit()
-    except SQLAlchemyError:
-        db.session.rollback()
-        app.logger.exception("Falha ao criar/atualizar administrador.")
-        raise click.ClickException("Não foi possível criar/atualizar a conta administrativa.")
-    click.echo("Conta administrativa criada/atualizada com sucesso.")
-
-
-@app.errorhandler(403)
-def forbidden(_error):
-    if request.path.startswith("/api/"):
-        return jsonify({"success": False, "error": "Acesso negado."}), 403
-    return "Acesso negado.", 403
-
-
-@app.errorhandler(404)
-def not_found(_error):
-    if request.path.startswith("/api/"):
-        return jsonify({"success": False, "error": "Recurso não encontrado."}), 404
-    return "Página não encontrada.", 404
-
-
-@app.errorhandler(Exception)
-def handle_exception(error):
-    app.logger.exception("Erro não tratado na aplicação: %s", error)
-    if request.path.startswith("/api/"):
-        return jsonify({"success": False, "error": "Erro interno. Tente novamente."}), 500
-    return "Erro interno. Tente novamente.", 500
-
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
-import threading
-import time
-from data_source import TwelveDataSource
-from analyzer import analyze_market
-
 def background_analyzer():
     while True:
         try:
@@ -695,3 +532,8 @@ def background_analyzer():
 
 analyzer_thread = threading.Thread(target=background_analyzer, daemon=True)
 analyzer_thread.start()
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
