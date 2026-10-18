@@ -381,10 +381,10 @@ def _api_config_response(settings):
     data["api_keys"] = [
         {
             "number": i + 1,
-            "configured": bool(value),
-            "masked": mask_secret(decrypt_secret(value)) if value else "",
+            "configured": bool(val),
+            "masked": f"••••••••{val[-4:]}" if val and len(val) > 4 else ("••••" if val else ""),
         }
-        for i, value in enumerate(encrypted_values)
+        for i, val in enumerate([settings.api_key_1, settings.api_key_2, settings.api_key_3, settings.api_key_4])
     ]
     return jsonify(data)
 
@@ -573,15 +573,15 @@ def save_api_key(key_num):
     
     settings = get_settings()
     
-    # Valida e encripta a chave correspondente (1, 2, 3 ou 4)
+    # Atribui o valor diretamente para garantir persistência imediata
     if key_num == 1:
-        settings.api_key_1 = encrypt_secret(key_value.strip()) if key_value else ""
+        settings.api_key_1 = key_value.strip() if key_value else ""
     elif key_num == 2:
-        settings.api_key_2 = encrypt_secret(key_value.strip()) if key_value else ""
+        settings.api_key_2 = key_value.strip() if key_value else ""
     elif key_num == 3:
-        settings.api_key_3 = encrypt_secret(key_value.strip()) if key_value else ""
+        settings.api_key_3 = key_value.strip() if key_value else ""
     elif key_num == 4:
-        settings.api_key_4 = encrypt_secret(key_value.strip()) if key_value else ""
+        settings.api_key_4 = key_value.strip() if key_value else ""
     else:
         return jsonify({"success": False, "error": "Número de chave inválido."}), 400
 
