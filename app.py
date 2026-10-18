@@ -453,8 +453,9 @@ def _apply_config_api_keys(settings, incoming_keys):
             return "Uma chave informada possui formato inválido."
         setattr(settings, name, encrypt_secret(value.strip()))
 
-    if not settings.api_key_1:
-        return "A chave API 01 é obrigatória."
+    if not any([settings.api_key_1, settings.api_key_2, settings.api_key_3, settings.api_key_4]):
+    return "Pelo menos uma chave de API deve ser configurada."
+    
     return None
 
 
@@ -564,29 +565,32 @@ def delete_api_key(key_number):
     return response
 
 
-@app.route("/api/keys/test/<int:key_number>", methods=["POST"])
+@app.route("/api/keys/<int:key_num>", methods=["POST"])
 @login_required
-def test_api_key(key_number):
-    """Testa a conexão usando a chave de API especificada."""
-    if key_number not in (1, 2, 3, 4):
-        return api_error("Número de chave inválido.")
-
+def save_api_key(key_num):
+    data = request.get_json() or {}
+    key_value = data.get("api_key") or data.get("key") or ""
+    
     settings = get_settings()
-    keys = get_user_api_keys(settings)
-    key = keys[key_number - 1]
+    
+    # Valida e encripta a chave correspondente (1, 2, 3 ou 4)
+    if key_num == 1:
+        settings.api_key_1 = encrypt_secret(key_value.strip()) if key_value else ""
+    elif key_num == 2:
+        settings.api_key_2 = encrypt_secret(key_value.strip()) if key_value else ""
+    elif key_num == 3:
+        settings.api_key_3 = encrypt_secret(key_value.strip()) if key_value else ""
+    elif key_num == 4:
+        settings.api_key_4 = encrypt_secret(key_value.strip()) if key_value else ""
+    else:
+        return jsonify({"success": False, "error": "Número de chave inválido."}), 400
 
-    if not key:
-        return api_error(f"A chave API 0{key_number} não está configurada.")
-
-    source = TwelveDataSource(api_keys=[key])
-    result = source.test_connection()
-
-    return jsonify({
-        "success": bool(result.get("success")),
-        "message": result.get("message", "Teste concluído."),
-        "key_number": key_number,
-        "masked_key": mask_secret(key),
-    })
+    try:
+        db.session.commit()
+        return jsonify({"success": True, "message": f"Chave 0{key_num} salva com sucesso!"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route("/api/keys/test-all", methods=["POST"])
@@ -633,8 +637,8 @@ def api_toggle():
     if not isinstance(requested, bool):
         return api_error("Informe enabled como verdadeiro ou falso.")
 
-    if requested and not settings.api_key_1:
-        return api_error("Configure a chave API 01 antes de iniciar.")
+    if requested and not any([settings.api_key_1, settings.api_key_2, settings.api_key_3, settings.api_key_4]):
+    return api_error("Configure pelo menos uma chave de API antes de iniciar.")
 
     settings.analysis_enabled = requested
     db.session.commit()
