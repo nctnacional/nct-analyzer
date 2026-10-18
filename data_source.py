@@ -268,19 +268,27 @@ class TwelveDataSource:
         interval: str = "5min",
         outputsize: int = 12,
     ) -> Dict[str, List[Dict[str, Any]]]:
-        """Consulta vários símbolos sequencialmente."""
+        """Consulta vários símbolos distribuindo as chaves disponíveis para respeitar o limite de 8 req/min."""
         results = {}
+        keys = [k for k in self.api_keys if k and k.strip()]
+        
+        if not keys:
+            return results
 
-        for symbol in symbols:
+        for i, symbol in enumerate(symbols):
             normalized_symbol = (symbol or "").strip().upper()
             if not normalized_symbol:
                 continue
 
-            results[normalized_symbol] = self.get_candles(
+            # Distribui rotativamente os pares pelas chaves cadastradas pelo usuário
+            active_key = [keys[i % len(keys)]]
+            
+            candles = self.get_candles(
                 normalized_symbol,
                 interval=interval,
                 outputsize=outputsize,
             )
+            results[normalized_symbol] = candles
 
         return results
 

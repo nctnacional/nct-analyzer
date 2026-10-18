@@ -444,9 +444,10 @@ def api_state():
     settings = get_settings()
     config = settings_to_dict(settings)
     
-    # Conta diretamente quantas chaves existem preenchidas na base de dados
+    # Conta rigorosamente as chaves salvas na base de dados
     keys_list = [settings.api_key_1, settings.api_key_2, settings.api_key_3, settings.api_key_4]
-    config["api_keys_count"] = sum(1 for k in keys_list if k and k.strip() != "")
+    valid_keys_count = sum(1 for k in keys_list if k and k.strip() != "")
+    config["api_keys_count"] = valid_keys_count
     
     return jsonify({
         "success": True,
