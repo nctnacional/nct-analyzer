@@ -1,162 +1,123 @@
 import os
+import re
+import logging
 from datetime import datetime, timezone
 from functools import wraps
+
 import click
 from cryptography.fernet import Fernet, InvalidToken
-from flask import (
-    Flask, render_template, redirect, url_for, request,
-    jsonify, flash, abort
-)
+from dotenv import load_dotenv
+from flask import Flask, render_template, redirect, url_for, request, jsonify, flash, abort
 from flask_login import (
     LoginManager, UserMixin, login_user, logout_user,
-    login_required, current_user
+    login_required, current_user,
 )
 from flask_wtf.csrf import CSRFProtect
-from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.exc import SQLAlchemyError
-from data_source import TwelveDataSource
-from dotenv import load_dotenv
+from werkzeug.security import generate_password_hash, check_password_hash
 
-# Importa a instância única e partilhada do db
+from data_source import TwelveDataSource
 from extensions import db
 
 load_dotenv()
 
 app = Flask(__name__)
 
-# Configurações de segurança e CSRF
-csrf = CSRFProtect(app)
-app.config['WTF_CSRF_ENABLED'] = False
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "segredo-padrao-seguro")
+# Produção: defina SECRET_KEY e ENCRYPTION_KEY como variáveis persistentes no Render.
+secret_key = os.environ.get("SECRET_KEY", "").strip()
+if not secret_key:
+    if os.environ.get("RENDER") or os.environ.get("FLASK_ENV") == "production":
+        raise RuntimeError("Defina SECRET_KEY nas variáveis de ambiente do serviço.")
+    secret_key = "dev-only-change-this-secret-key"
+app.config["SECRET_KEY"] = secret_key
 
-# Tratamento e configuração da Base de Dados (PostgreSQL / SQLite)
-raw_db_url = os.environ.get("DATABASE_URL", "").strip().strip('"').strip("'")
-
-if raw_db_url and "://" in raw_db_url:
-    if raw_db_url.startswith("postgres://"):
-        raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
-    if "postgresql://" in raw_db_url and "psycopg2" not in raw_db_url:
-        raw_db_url = raw_db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
-    final_db_url = raw_db_url
-else:
-    final_db_url = "sqlite:///nct_online.db"
-
-app.config["SQLALCHEMY_DATABASE_URI"] = final_db_url
-
-if os.environ.get("DATABASE_URL", "").strip():
-    app.logger.info(
-        "DIAGNOSTICO_DB: DATABASE_URL configurada; "
-        "tipo=%s",
-        final_db_url.split(":", 1)[0]
-    )
-else:
-    app.logger.error(
-        "DIAGNOSTICO_DB: DATABASE_URL ausente; "
-        "aplicacao pode usar SQLite."
-    )
-    
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["WTF_CSRF_ENABLED"] = False  # Compatibilidade com o painel JSON atual; reative ao incluir tokens CSRF em todos os formulários.
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("RENDER"))
 app.config["REMEMBER_COOKIE_HTTPONLY"] = True
 app.config["REMEMBER_COOKIE_SAMESITE"] = "Lax"
 app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# Inicialização única do SQLAlchemy na aplicação
+raw_db_url = os.environ.get("DATABASE_URL", "").strip().strip('"').strip("'")
+if raw_db_url and "://" in raw_db_url:
+    if raw_db_url.startswith("postgres://"):
+        raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
+    if raw_db_url.startswith("postgresql://"):
+        raw_db_url = raw_db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = raw_db_url
+else:
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///nct_online.db"
+
+csrf = CSRFProtect(app)
 db.init_app(app)
-
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
 login_manager.login_message = "Faça login para continuar."
 login_manager.login_message_category = "warning"
 
-
-
-# =======================================================
-# CRIPTOGRAFIA DAS CHAVES DA TWELVE DATA
-# =======================================================
-
+# A chave deve ser persistente. Nunca gerar uma nova automaticamente em produção,
+# pois isso impediria a descriptografia das credenciais já armazenadas.
 encryption_key = os.environ.get("ENCRYPTION_KEY", "").strip()
-
-try:
-    if not encryption_key:
-        raise ValueError("Chave vazia")
-    cipher = Fernet(encryption_key.encode("utf-8"))
-except ValueError:
-    # Fallback automático: se a chave do ambiente estiver ausente ou inválida, 
-    # gera uma chave Fernet válida em tempo de execução para evitar falhas no deploy.
+if encryption_key:
+    try:
+        cipher = Fernet(encryption_key.encode("utf-8"))
+    except (ValueError, TypeError) as exc:
+        raise RuntimeError("ENCRYPTION_KEY inválida. Gere uma chave Fernet válida.") from exc
+else:
+    if os.environ.get("RENDER") or os.environ.get("FLASK_ENV") == "production":
+        raise RuntimeError("Defina ENCRYPTION_KEY persistente nas variáveis de ambiente.")
+    # Desenvolvimento local apenas. Para manter credenciais entre reinícios, configure ENCRYPTION_KEY.
     cipher = Fernet(Fernet.generate_key())
+    app.logger.warning("ENCRYPTION_KEY ausente: chave temporária de desenvolvimento em uso.")
+
 
 def encrypt_secret(value):
-    """Encrypt a secret value with the configured Fernet cipher."""
     if not value:
         return None
     return cipher.encrypt(value.encode("utf-8")).decode("utf-8")
 
 
 def decrypt_secret(value):
-    """Decrypt a secret value with the configured Fernet cipher."""
     if not value:
         return None
     try:
         return cipher.decrypt(value.encode("utf-8")).decode("utf-8")
-    except (InvalidToken, ValueError):
-        app.logger.error("Não foi possível descriptografar uma credencial.")
+    except (InvalidToken, ValueError, TypeError):
+        app.logger.warning("Não foi possível descriptografar uma credencial; confira ENCRYPTION_KEY.")
         return None
 
 
 def mask_secret(value):
-    """Mask a secret value for safe display while keeping the ends visible."""
     if not value:
         return ""
     if len(value) <= 8:
         return "*" * len(value)
-    return value[:4] + ("*" * (len(value) - 8)) + value[-4:]
+    return value[:4] + "*" * (len(value) - 8) + value[-4:]
 
 
-# ==========================================================
-# MODELOS DO BANCO DE DADOS
-# ==========================================================
+DEFAULT_PAIRS = ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD"]
+ALLOWED_TIMEFRAMES = {"1min", "5min", "15min", "30min", "1h"}
+API_KEY_FIELDS = ["api_key_1", "api_key_2", "api_key_3", "api_key_4"]
+
 
 class User(UserMixin, db.Model):
-    """Representa uma conta de usuário armazenada no banco de dados."""
-
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(254), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, nullable=False, default=False)
     is_active_account = db.Column(db.Boolean, nullable=False, default=True)
-    created_at = db.Column(
-        db.DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.now(timezone.utc),
-    )
-
-    settings = db.relationship(
-        "UserSettings",
-        backref="user",
-        uselist=False,
-        cascade="all, delete-orphan",
-    )
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    settings = db.relationship("UserSettings", backref="user", uselist=False, cascade="all, delete-orphan")
 
     def get_id(self):
         return str(self.id)
 
 
 class UserSettings(db.Model):
-    """Store per-user analysis and API configuration."""
-
-    # SQLAlchemy models primarily expose mapped columns, not public methods.
-    # pylint: disable=too-few-public-methods
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(
-        db.Integer,
-        db.ForeignKey("user.id", ondelete="CASCADE"),
-        unique=True,
-        nullable=False,
-    )
-
-    # Configurações independentes de cada conta.
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="CASCADE"), unique=True, nullable=False)
     timeframe = db.Column(db.String(10), nullable=False, default="5min")
     window_candles = db.Column(db.Integer, nullable=False, default=24)
     leaders = db.Column(db.Integer, nullable=False, default=4)
@@ -165,84 +126,51 @@ class UserSettings(db.Model):
     update_seconds = db.Column(db.Integer, nullable=False, default=180)
     closed_candles_only = db.Column(db.Boolean, nullable=False, default=True)
     automatic_pairs = db.Column(db.Boolean, nullable=False, default=True)
-
-    pairs_json = db.Column(
-        db.JSON,
-        nullable=False,
-        default=lambda: [
-            "EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF",
-            "AUD/USD", "USD/CAD", "NZD/USD"
-        ],
-    )
-
-    # As chaves são criptografadas antes de serem gravadas.
+    pairs_json = db.Column(db.JSON, nullable=False, default=lambda: list(DEFAULT_PAIRS))
     api_key_1 = db.Column(db.Text, nullable=True)
     api_key_2 = db.Column(db.Text, nullable=True)
     api_key_3 = db.Column(db.Text, nullable=True)
     api_key_4 = db.Column(db.Text, nullable=True)
-
-    # Estado individual do painel.
     analysis_enabled = db.Column(db.Boolean, nullable=False, default=False)
     last_analysis_at = db.Column(db.DateTime(timezone=True), nullable=True)
     last_analysis_error = db.Column(db.String(500), nullable=True)
     last_results_json = db.Column(db.JSON, nullable=False, default=dict)
 
-# Criar as tabelas automaticamente no arranque
+
 with app.app_context():
     db.create_all()
 
+
 @login_manager.user_loader
 def load_user(user_id):
-    """Load a user by ID for Flask-Login."""
-    return db.session.get(User, int(user_id))
+    try:
+        return db.session.get(User, int(user_id))
+    except (TypeError, ValueError):
+        return None
 
 
 @app.before_request
 def require_active_account():
-    """Bloqueia o acesso de contas inativas."""
-    if current_user.is_authenticated:
-        # Verifica se o atributo existe no modelo User para evitar AttributeError
-        if hasattr(current_user, 'is_active_account') and not current_user.is_active_account:
-            logout_user()
-            if request.path.startswith("/api/"):
-                return jsonify({
-                    "success": False,
-                    "error": "Esta conta está bloqueada."
-                }), 403
-            flash("Esta conta está bloqueada.", "danger")
-            return redirect(url_for("login"))
+    if current_user.is_authenticated and not current_user.is_active_account:
+        logout_user()
+        if request.path.startswith("/api/"):
+            return jsonify({"success": False, "error": "Esta conta está bloqueada."}), 403
+        flash("Esta conta está bloqueada.", "danger")
+        return redirect(url_for("login"))
     return None
 
 
-# ==========================================================
-# FUNÇÕES AUXILIARES
-# ==========================================================
-
-DEFAULT_PAIRS = [
-    "EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF",
-    "AUD/USD", "USD/CAD", "NZD/USD"
-]
-
-ALLOWED_TIMEFRAMES = {
-    "1min", "5min", "15min", "30min", "1h"
-}
-
-
 def get_settings(user_id=None):
-    """Sempre recupera as configurações do usuário informado."""
     uid = user_id if user_id is not None else current_user.id
     settings = UserSettings.query.filter_by(user_id=uid).first()
-
     if settings is None:
         settings = UserSettings(user_id=uid)
         db.session.add(settings)
         db.session.commit()
-
     return settings
 
 
 def settings_to_dict(settings):
-    """Converte as configurações do usuário em um dicionário."""
     return {
         "timeframe": settings.timeframe,
         "window_candles": settings.window_candles,
@@ -252,23 +180,15 @@ def settings_to_dict(settings):
         "update_seconds": settings.update_seconds,
         "closed_candles_only": settings.closed_candles_only,
         "automatic_pairs": settings.automatic_pairs,
-        "pairs": settings.pairs_json or DEFAULT_PAIRS,
+        "pairs": settings.pairs_json or list(DEFAULT_PAIRS),
     }
 
 
 def get_user_api_keys(settings):
-    """Descriptografa somente as chaves da conta solicitada."""
-    encrypted_values = [
-        settings.api_key_1,
-        settings.api_key_2,
-        settings.api_key_3,
-        settings.api_key_4,
-    ]
-    return [decrypt_secret(value) for value in encrypted_values]
+    return [decrypt_secret(getattr(settings, name)) for name in API_KEY_FIELDS]
 
 
 def admin_required(view):
-    """Restrict access to administrators only."""
     @wraps(view)
     @login_required
     def wrapped(*args, **kwargs):
@@ -279,182 +199,53 @@ def admin_required(view):
 
 
 def valid_email(email):
-    """Return whether the supplied value has a valid email format."""
     email = (email or "").strip().lower()
-    return (
-        len(email) <= 254
-        and re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email) is not None
-    )
+    return len(email) <= 254 and re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email) is not None
 
 
 def api_error(message, status=400):
-    """Return a JSON error payload for API responses."""
     return jsonify({"success": False, "error": message}), status
 
 
-# ==========================================================
-# CADASTRO E LOGIN
-# ==========================================================
-
-@app.route("/")
-def index():
-    """Render the dashboard for authenticated users or redirect to login."""
-    if current_user.is_authenticated:
-        return render_template("dashboard.html")  # alterado para dashboard.html
-    return redirect(url_for("login"))
-
-
-@app.route("/register", methods=["GET", "POST"])
-def register():
-    """Register a new user account."""
-    if current_user.is_authenticated:
-        return redirect(url_for("index"))
-
-    if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-
-        if len(password) < 12:
-            flash("Utilize uma senha com pelo menos 12 caracteres.", "danger")
-            return render_template("register.html")
-
-        if User.query.filter_by(email=email).first():
-            flash("Este e-mail já está cadastrado.", "danger")
-            return render_template("register.html")
-
-        try:
-            user = User(
-                email=email,
-                password_hash=generate_password_hash(password)
-            )
-            db.session.add(user)
-            db.session.commit()
-
-            flash("Conta criada com sucesso! Faça login para continuar.", "success")
-            return redirect(url_for("login"))
-
-        except SQLAlchemyError as e:
-            db.session.rollback()
-            flash(f"Erro ao criar conta: {str(e)}", "danger")
-            return render_template("register.html")
-
-    return render_template("register.html")
-
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    """Authenticate a user and render or redirect from the login page."""
-    try:
-        if current_user.is_authenticated:
-            return redirect(url_for("index"))
-
-        if request.method == "POST":
-            email = request.form.get("email", "").strip().lower()
-            password = request.form.get("password", "")
-
-            user = User.query.filter_by(email=email).first()
-            if user and check_password_hash(user.password_hash, password):
-                login_user(user)
-                return redirect(url_for("index"))
-            else:
-                flash("E-mail ou senha inválidos.", "danger")
-
-        return render_template("login.html")
-    except SQLAlchemyError as e:
-        flash(f"Erro ao fazer login: {str(e)}", "danger")
-        return render_template("login.html")
-
-@app.route("/logout", methods=["GET", "POST"])
-@login_required
-def logout():
-    """Log out the current user and redirect to the login page."""
-    logout_user()
-    flash("Sessão terminada com sucesso.", "info")
-    return redirect(url_for("login"))
-
-# ==========================================================
-# PAINEL PRINCIPAL
-# ==========================================================
-
-@app.route("/dashboard")
-@login_required
-def dashboard():
-    """Render the main dashboard for the authenticated user."""
-    return render_template("dashboard.html")
-
-
-def _api_config_response(settings):
+def api_config_response(settings):
     data = settings_to_dict(settings)
-    
-    # Obtém os valores das chaves diretamente
-    raw_keys = [
-        settings.api_key_1,
-        settings.api_key_2,
-        settings.api_key_3,
-        settings.api_key_4
-    ]
-    
-    api_keys_info = []
-    for i, val in enumerate(raw_keys):
-        # Tenta desencriptar se houver valor, ou usa o próprio valor se não estiver encriptado
-        key_str = ""
-        if val:
-            try:
-                key_str = decrypt_secret(val)
-            except Exception:
-                key_str = val  # Fallback direto caso não esteja encriptado com a chave atual
-                
-        is_configured = bool(key_str and key_str.strip())
-        masked = f"••••••••{key_str[-4:]}" if is_configured and len(key_str) > 4 else ("••••" if is_configured else "")
-        
-        api_keys_info.append({
-            "number": i + 1,
-            "configured": is_configured,
-            "masked": masked
-        })
-        
-    data["api_keys"] = api_keys_info
+    keys_info = []
+    for i, field in enumerate(API_KEY_FIELDS, start=1):
+        decrypted = decrypt_secret(getattr(settings, field))
+        keys_info.append({"number": i, "configured": bool(decrypted), "masked": mask_secret(decrypted)})
+    data["api_keys"] = keys_info
+    data["api_keys_count"] = sum(1 for item in keys_info if item["configured"])
     return jsonify(data)
 
 
-def _parse_api_config_numbers(data, settings):
-    """Parse and validate numeric configuration fields."""
+def parse_config_numbers(data, settings):
     try:
         values = {
             "window": int(data.get("window_candles", settings.window_candles)),
             "leaders": int(data.get("leaders", settings.leaders)),
-            "followers": int(data.get(
-                "followers_per_leader", settings.followers_per_leader
-            )),
-            "similarity": float(data.get(
-                "min_similarity", settings.min_similarity
-            )),
-            "update_seconds": int(data.get(
-                "update_seconds", settings.update_seconds
-            )),
+            "followers": int(data.get("followers_per_leader", settings.followers_per_leader)),
+            "similarity": float(data.get("min_similarity", settings.min_similarity)),
+            "update_seconds": int(data.get("update_seconds", settings.update_seconds)),
         }
     except (TypeError, ValueError):
         return None, "Um ou mais parâmetros possuem formato inválido."
-
-    limits = (
+    limits = [
         ("window", 5, 200, "A janela deve ficar entre 5 e 200 candles."),
         ("leaders", 1, 10, "A quantidade de líderes deve ficar entre 1 e 10."),
         ("followers", 1, 10, "Seguidores por líder deve ficar entre 1 e 10."),
         ("similarity", 0, 100, "A similaridade deve ficar entre 0 e 100."),
-        ("update_seconds", 60, 3600,
-         "O intervalo de atualização deve ficar entre 60 e 3600 segundos."),
-    )
+        ("update_seconds", 60, 3600, "O intervalo de atualização deve ficar entre 60 e 3600 segundos."),
+    ]
     for name, minimum, maximum, message in limits:
         if not minimum <= values[name] <= maximum:
             return None, message
     return values, None
 
 
-def _normalize_config_pairs(data, settings):
-    """Validate and normalize the configured market pairs."""
+def normalize_config_pairs(data, settings):
     pairs = data.get("pairs", settings.pairs_json or DEFAULT_PAIRS)
     if not isinstance(pairs, list) or len(pairs) > 100:
         return None, "A lista de pares é inválida."
-
     normalized = []
     for pair in pairs:
         if not isinstance(pair, str):
@@ -467,46 +258,27 @@ def _normalize_config_pairs(data, settings):
     return normalized, None
 
 
-def _apply_config_api_keys(settings, incoming_keys):
-    """Apply explicitly supplied API keys, preserving empty positions."""
-    if not isinstance(incoming_keys, list) or len(incoming_keys) != 4:
-        return "Envie exatamente quatro posições para as chaves."
-
-    encrypted_names = ["api_key_1", "api_key_2", "api_key_3", "api_key_4"]
-    for name, value in zip(encrypted_names, incoming_keys):
-        if value is None or value == "":
-            continue
-        if not isinstance(value, str) or len(value) > 500:
-            return "Uma chave informada possui formato inválido."
-        setattr(settings, name, encrypt_secret(value.strip()))
-
-    if not any([settings.api_key_1, settings.api_key_2, settings.api_key_3, settings.api_key_4]):
-        return "Pelo menos uma chave de API deve ser configurada."
-
-    return None
-
-
-def _save_api_config(settings, data):
-    """Validate, persist, and return an API configuration update."""
+def save_api_config(settings, data):
     timeframe = data.get("timeframe", settings.timeframe)
     if timeframe not in ALLOWED_TIMEFRAMES:
         return api_error("Intervalo de análise inválido.")
-
-    numbers, error = _parse_api_config_numbers(data, settings)
+    numbers, error = parse_config_numbers(data, settings)
     if error:
         return api_error(error)
-    normalized_pairs, error = _normalize_config_pairs(data, settings)
+    pairs, error = normalize_config_pairs(data, settings)
     if error:
         return api_error(error)
 
-    # Chaves só são alteradas quando o usuário as envia explicitamente.
-    # Campo vazio preserva a chave já salva. Para remover, use o endpoint
-    # dedicado abaixo, evitando apagar chaves acidentalmente.
     incoming_keys = data.get("api_keys")
     if incoming_keys is not None:
-        error = _apply_config_api_keys(settings, incoming_keys)
-        if error:
-            return api_error(error)
+        if not isinstance(incoming_keys, list) or len(incoming_keys) != 4:
+            return api_error("Envie exatamente quatro posições para as chaves.")
+        for field, value in zip(API_KEY_FIELDS, incoming_keys):
+            if value is None or value == "":
+                continue  # vazio preserva a chave existente
+            if not isinstance(value, str) or not value.strip() or len(value) > 500:
+                return api_error("Uma chave informada possui formato inválido.")
+            setattr(settings, field, encrypt_secret(value.strip()))
 
     settings.timeframe = timeframe
     settings.window_candles = numbers["window"]
@@ -514,160 +286,234 @@ def _save_api_config(settings, data):
     settings.followers_per_leader = numbers["followers"]
     settings.min_similarity = numbers["similarity"]
     settings.update_seconds = numbers["update_seconds"]
-    settings.closed_candles_only = bool(
-        data.get("closed_candles_only", settings.closed_candles_only)
-    )
-    settings.automatic_pairs = bool(
-        data.get("automatic_pairs", settings.automatic_pairs)
-    )
-    settings.pairs_json = normalized_pairs or DEFAULT_PAIRS
-
+    settings.closed_candles_only = parse_bool(data.get("closed_candles_only", settings.closed_candles_only), settings.closed_candles_only)
+    settings.automatic_pairs = parse_bool(data.get("automatic_pairs", settings.automatic_pairs), settings.automatic_pairs)
+    settings.pairs_json = pairs or list(DEFAULT_PAIRS)
     try:
         db.session.commit()
     except SQLAlchemyError:
         db.session.rollback()
         app.logger.exception("Falha ao salvar configurações.")
         return api_error("Não foi possível salvar as configurações.", 500)
+    return jsonify({"success": True, "message": "Configurações salvas.", "config": settings_to_dict(settings)})
 
-    return jsonify({
-        "success": True,
-        "message": "Configurações salvas.",
-        "config": settings_to_dict(settings),
-    })
+
+def parse_bool(value, default=False):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in ("true", "1", "yes", "on"):
+            return True
+        if lowered in ("false", "0", "no", "off"):
+            return False
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return bool(value)
+    return bool(default)
+
+
+@app.route("/")
+def index():
+    if current_user.is_authenticated:
+        return render_template("dashboard.html")
+    return redirect(url_for("login"))
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for("index"))
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        if not valid_email(email):
+            flash("Informe um e-mail válido.", "danger")
+        elif len(password) < 12:
+            flash("Utilize uma senha com pelo menos 12 caracteres.", "danger")
+        elif User.query.filter_by(email=email).first():
+            flash("Este e-mail já está cadastrado.", "danger")
+        else:
+            try:
+                user = User(email=email, password_hash=generate_password_hash(password))
+                db.session.add(user)
+                db.session.flush()
+                db.session.add(UserSettings(user_id=user.id))
+                db.session.commit()
+                flash("Conta criada com sucesso! Faça login para continuar.", "success")
+                return redirect(url_for("login"))
+            except SQLAlchemyError:
+                db.session.rollback()
+                app.logger.exception("Erro ao criar conta.")
+                flash("Não foi possível criar a conta. Tente novamente.", "danger")
+    return render_template("register.html")
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for("index"))
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        user = User.query.filter_by(email=email).first()
+        if user and user.is_active_account and check_password_hash(user.password_hash, password):
+            login_user(user)
+            return redirect(url_for("index"))
+        flash("E-mail/senha inválidos ou conta bloqueada.", "danger")
+    return render_template("login.html")
+
+
+@app.route("/logout", methods=["GET", "POST"])
+@login_required
+def logout():
+    logout_user()
+    flash("Sessão terminada com sucesso.", "info")
+    return redirect(url_for("login"))
+
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    return render_template("dashboard.html")
 
 
 @app.route("/api/config", methods=["GET", "POST"])
 @login_required
 def api_config():
-    """Return or update the authenticated user's application settings."""
     settings = get_settings()
     if request.method == "GET":
-        return _api_config_response(settings)
-    return _save_api_config(settings, request.get_json(silent=True) or {})
-
+        return api_config_response(settings)
+    return save_api_config(settings, request.get_json(silent=True) or {})
 
 
 @app.route("/api/keys/<int:key_num>", methods=["POST"])
 @login_required
 def save_api_key(key_num):
+    if key_num not in range(1, 5):
+        return api_error("Número de chave inválido.")
     data = request.get_json(silent=True) or {}
-    key_value = (data.get("api_key") or data.get("key") or "").strip()
-    
+    key_value = data.get("api_key", data.get("key", ""))
+    if not isinstance(key_value, str):
+        return api_error("Formato de chave inválido.")
+    key_value = key_value.strip()
     if not key_value:
-        return jsonify({"success": False, "error": "Informe uma chave de API válida."}), 400
-        
+        return api_error("Informe uma chave de API válida.")
+    if len(key_value) > 500:
+        return api_error("A chave informada excede o tamanho permitido.")
     settings = get_settings()
-    
-    # Atribuição direta e segura com base no número exato da chave (1 a 4)
-    if key_num == 1:
-        settings.api_key_1 = key_value
-    elif key_num == 2:
-        settings.api_key_2 = key_value
-    elif key_num == 3:
-        settings.api_key_3 = key_value
-    elif key_num == 4:
-        settings.api_key_4 = key_value
-    else:
-        return jsonify({"success": False, "error": "Número de chave inválido."}), 400
-
+    setattr(settings, API_KEY_FIELDS[key_num - 1], encrypt_secret(key_value))
     try:
         db.session.commit()
-        return jsonify({"success": True, "message": f"Chave 0{key_num} salva com sucesso!"})
-    except Exception as e:
+    except SQLAlchemyError:
         db.session.rollback()
-        return jsonify({"success": False, "error": str(e)}), 500
+        app.logger.exception("Falha ao salvar a chave %s.", key_num)
+        return api_error("Não foi possível salvar a chave.", 500)
+    return jsonify({"success": True, "message": f"Chave 0{key_num} salva com sucesso!"})
 
-    return response
 
+def test_one_key(key_num):
+    if key_num not in range(1, 5):
+        return api_error("Número de chave inválido.")
+    settings = get_settings()
+    key = get_user_api_keys(settings)[key_num - 1]
+    if not key:
+        return jsonify({"success": True, "key_number": key_num, "configured": False, "test_success": False, "message": "Chave não configurada ou não pôde ser descriptografada."})
+    try:
+        result = TwelveDataSource(api_keys=[key]).test_connection()
+        if not isinstance(result, dict):
+            result = {"success": bool(result), "message": "Teste concluído."}
+        return jsonify({"success": True, "key_number": key_num, "configured": True, "test_success": bool(result.get("success")), "masked_key": mask_secret(key), "message": str(result.get("message", "Teste concluído."))})
+    except Exception:
+        app.logger.exception("Falha ao testar a chave %s.", key_num)
+        return jsonify({"success": True, "key_number": key_num, "configured": True, "test_success": False, "masked_key": mask_secret(key), "message": "Falha no teste de conexão. Confira a chave e tente novamente."})
+
+
+@app.route("/api/keys/test/<int:key_num>", methods=["POST"])
+@login_required
+def test_api_key(key_num):
+    return test_one_key(key_num)
 
 
 @app.route("/api/keys/test-all", methods=["POST"])
 @login_required
 def test_all_api_keys():
-    """Testa a conexão de todas as chaves de API configuradas."""
     settings = get_settings()
     keys = get_user_api_keys(settings)
-
     results = []
-
     for number, key in enumerate(keys, start=1):
         if not key:
-            results.append({
-                "key_number": number,
-                "configured": False,
-                "success": False,
-                "message": "Chave não configurada.",
-            })
+            results.append({"key_number": number, "configured": False, "success": False, "message": "Chave não configurada ou não pôde ser descriptografada."})
             continue
-
-        source = TwelveDataSource(api_keys=[key])
-        result = source.test_connection()
-
-        results.append({
-            "key_number": number,
-            "configured": True,
-            "success": bool(result.get("success")),
-            "masked_key": mask_secret(key),
-            "message": result.get("message", "Teste concluído."),
-        })
-
+        try:
+            result = TwelveDataSource(api_keys=[key]).test_connection()
+            if not isinstance(result, dict):
+                result = {"success": bool(result), "message": "Teste concluído."}
+            results.append({"key_number": number, "configured": True, "success": bool(result.get("success")), "masked_key": mask_secret(key), "message": str(result.get("message", "Teste concluído."))})
+        except Exception:
+            app.logger.exception("Falha ao testar a chave %s.", number)
+            results.append({"key_number": number, "configured": True, "success": False, "masked_key": mask_secret(key), "message": "Falha no teste de conexão."})
     return jsonify({"success": True, "results": results})
+
+
+@app.route("/api/keys/<int:key_num>", methods=["DELETE"])
+@login_required
+def delete_api_key(key_num):
+    if key_num not in range(1, 5):
+        return api_error("Número de chave inválido.")
+    settings = get_settings()
+    setattr(settings, API_KEY_FIELDS[key_num - 1], None)
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception("Falha ao remover a chave %s.", key_num)
+        return api_error("Não foi possível remover a chave.", 500)
+    return jsonify({"success": True, "message": f"Chave 0{key_num} removida."})
 
 
 @app.route("/api/toggle", methods=["POST"])
 @login_required
 def api_toggle():
-    """Ativa ou desativa a análise conforme a solicitação recebida."""
     settings = get_settings()
     data = request.get_json(silent=True) or {}
-
     requested = data.get("enabled")
     if not isinstance(requested, bool):
         return api_error("Informe enabled como verdadeiro ou falso.")
-
-    if requested and not any([settings.api_key_1, settings.api_key_2, settings.api_key_3, settings.api_key_4]):
-        return api_error("Configure pelo menos uma chave de API antes de iniciar.")
-
+    keys = get_user_api_keys(settings)
+    if requested and not any(keys):
+        return api_error("Configure pelo menos uma chave de API válida antes de iniciar.")
+    # Este endpoint muda o estado salvo; ele não inicia sozinho um worker de análise.
     settings.analysis_enabled = requested
-    db.session.commit()
-
-    return jsonify({
-        "success": True,
-        "enabled": settings.analysis_enabled,
-    })
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception("Falha ao alterar estado da análise.")
+        return api_error("Não foi possível alterar o estado da análise.", 500)
+    return jsonify({"success": True, "enabled": settings.analysis_enabled, "message": "Estado atualizado."})
 
 
 @app.route("/api/state")
 @login_required
 def api_state():
-    """Retorna o estado atual da análise e as configurações do usuário."""
     settings = get_settings()
-
+    config = settings_to_dict(settings)
+    config["api_keys_count"] = sum(bool(key) for key in get_user_api_keys(settings))
     return jsonify({
         "success": True,
-        "user": {
-            "email": current_user.email,
-            "is_admin": current_user.is_admin,
-        },
-        "config": settings_to_dict(settings),
+        "user": {"email": current_user.email, "is_admin": current_user.is_admin},
+        "config": config,
         "analysis_enabled": settings.analysis_enabled,
-        "last_analysis_at": (
-            settings.last_analysis_at.isoformat()
-            if settings.last_analysis_at else None
-        ),
+        "last_analysis_at": settings.last_analysis_at.isoformat() if settings.last_analysis_at else None,
         "last_analysis_error": settings.last_analysis_error,
         "results": settings.last_results_json or {},
+        "last_results_json": settings.last_results_json or {},
     })
 
-
-# ==========================================================
-# ADMINISTRAÇÃO
-# ==========================================================
 
 @app.route("/admin")
 @admin_required
 def admin():
-    """Exibe a página de administração com a lista de usuários."""
     users = User.query.order_by(User.created_at.desc()).all()
     return render_template("admin.html", users=users)
 
@@ -675,93 +521,81 @@ def admin():
 @app.route("/admin/users/<int:user_id>/status", methods=["POST"])
 @admin_required
 def admin_user_status(user_id):
-    """Atualiza o status de ativação de uma conta de usuário."""
     user = db.session.get(User, user_id)
     if not user:
         abort(404)
-
-    data = request.get_json(silent=True) or {}
-    active = data.get("active")
-
+    active = (request.get_json(silent=True) or {}).get("active")
     if not isinstance(active, bool):
         return api_error("Informe active como verdadeiro ou falso.")
-
     if user.id == current_user.id and not active:
         return api_error("Você não pode bloquear sua própria conta.")
-
     user.is_active_account = active
     if not active and user.settings:
         user.settings.analysis_enabled = False
-
-    db.session.commit()
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception("Falha ao alterar conta do usuário %s.", user_id)
+        return api_error("Não foi possível alterar a conta.", 500)
     return jsonify({"success": True})
 
 
 @app.route("/admin/users/<int:user_id>/delete", methods=["POST"])
 @admin_required
 def admin_user_delete(user_id):
-    """Exclui uma conta de usuário pelo identificador informado."""
     user = db.session.get(User, user_id)
     if not user:
         abort(404)
-
     if user.id == current_user.id:
         return api_error("Você não pode excluir sua própria conta.")
-
-    db.session.delete(user)
-    db.session.commit()
+    try:
+        db.session.delete(user)
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception("Falha ao excluir conta do usuário %s.", user_id)
+        return api_error("Não foi possível excluir a conta.", 500)
     return jsonify({"success": True})
 
 
-# ==========================================================
-# COMANDO DE CONFIGURAÇÃO INICIAL
-# ==========================================================
-
 @app.cli.command("init-db")
 def init_db():
-    """Cria as tabelas do banco."""
     with app.app_context():
         db.create_all()
-    click.echo("Tabelas criadas.")
+    click.echo("Tabelas criadas/verificadas.")
 
 
 @app.cli.command("criar-admin")
 @click.option("--email", prompt="E-mail do Admin", help="E-mail para a conta admin")
 @click.option("--password", prompt=True, hide_input=True, confirmation_prompt=True, help="Senha para a conta admin")
 def criar_admin(email, password):
-    """Comando de terminal para criar ou atualizar o utilizador admin."""
     email = email.strip().lower()
-
     if not valid_email(email):
         raise click.ClickException("E-mail inválido.")
-
     if len(password) < 12:
         raise click.ClickException("Use uma senha com pelo menos 12 caracteres.")
-
-    user = User.query.filter_by(email=email).first()
-
-    if user is None:
-        user = User(
-            email=email,
-            password_hash=generate_password_hash(password),
-            is_admin=True,
-            is_active_account=True
-        )
-        db.session.add(user)
-        db.session.flush()
-        db.session.add(UserSettings(user_id=user.id))
-    else:
-        user.password_hash = generate_password_hash(password)
-        user.is_admin = True
-        user.is_active_account = True
-
-    db.session.commit()
+    try:
+        user = User.query.filter_by(email=email).first()
+        if user is None:
+            user = User(email=email, password_hash=generate_password_hash(password), is_admin=True, is_active_account=True)
+            db.session.add(user)
+            db.session.flush()
+            db.session.add(UserSettings(user_id=user.id))
+        else:
+            user.password_hash = generate_password_hash(password)
+            user.is_admin = True
+            user.is_active_account = True
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception("Falha ao criar/atualizar administrador.")
+        raise click.ClickException("Não foi possível criar/atualizar a conta administrativa.")
     click.echo("Conta administrativa criada/atualizada com sucesso.")
 
 
 @app.errorhandler(403)
 def forbidden(_error):
-    """Return a JSON or HTML message when access is denied."""
     if request.path.startswith("/api/"):
         return jsonify({"success": False, "error": "Acesso negado."}), 403
     return "Acesso negado.", 403
@@ -769,17 +603,20 @@ def forbidden(_error):
 
 @app.errorhandler(404)
 def not_found(_error):
-    """Return a JSON or HTML message when a route is not found."""
     if request.path.startswith("/api/"):
         return jsonify({"success": False, "error": "Recurso não encontrado."}), 404
     return "Página não encontrada.", 404
 
+
 @app.errorhandler(Exception)
-def handle_exception(e):
-    """Handle unexpected application exceptions."""
-    import traceback
-    return f"<h3>Erro Crítico Detalhado:</h3><pre>{traceback.format_exc()}</pre>", 500
+def handle_exception(error):
+    # Log interno para diagnóstico; nunca enviar traceback ao navegador.
+    app.logger.exception("Erro não tratado na aplicação: %s", error)
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "error": "Erro interno. Tente novamente."}), 500
+    return "Erro interno. Tente novamente.", 500
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=False)

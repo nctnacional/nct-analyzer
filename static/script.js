@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let requestInProgress = false;
     let refreshTimer = null;
     let analysisEnabled = false;
+    let marketChart = null;
 
     // =====================================================
     // UTILITARIOS
@@ -22,42 +23,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 : String(value);
     }
 
-    function showMessage(id, message, type = "info") {
-        const element = $(id);
-        if (!element) return;
-
-        element.textContent = message || "";
-        element.hidden = !message;
-
-        element.classList.remove(
-            "error-message",
-            "success-message",
-            "warning-message",
-            "feedback-message"
-        );
-
-        if (!message) return;
-
-        const className = {
-            error: "error-message",
-            success: "success-message",
-            warning: "warning-message"
-        }[type] || "feedback-message";
-
-        element.classList.add(className);
-    }
-
-    function setValue(id, value) {
-        const element = $(id);
-        if (!element || value === undefined || value === null) return;
-
-        if (element.type === "checkbox") {
-            element.checked = Boolean(value);
-        } else {
-            element.value = value;
-        }
-    }
-
     function formatDate(value) {
         if (!value) return "Ainda não realizada";
 
@@ -69,7 +34,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function formatNumber(value, digits = 2) {
         const number = Number(value);
-        if (!Number.isFinite(number)) return String(value ?? "—");
+
+        if (!Number.isFinite(number)) return "—";
 
         return number.toLocaleString("pt-BR", {
             minimumFractionDigits: digits,
@@ -79,9 +45,86 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function formatPercent(value) {
         const number = Number(value);
+
         if (!Number.isFinite(number)) return "—";
 
-        return `${formatNumber(number > 0 && number <= 1 ? number * 100 : number)}%`;
+        const percent =
+            number > 0 && number <= 1 ? number * 100 : number;
+
+        return `${formatNumber(percent)}%`;
+    }
+
+    function showMessage(id, message, type = "info") {
+        let element = $(id);
+
+        // Cria a área de mensagem se ela não existir no HTML.
+        if (!element) {
+            const anchor =
+                id === "config-message"
+                    ? $("config-form")
+                    : id === "key-results"
+                        ? $("test-all-keys")
+                        : $("start-analysis");
+
+            if (!anchor) return;
+
+            element = document.createElement("div");
+            element.id = id;
+            element.className = "mb-3 rounded-lg border p-3 text-xs";
+
+            anchor.parentNode.insertBefore(
+                element,
+                anchor.nextSibling
+            );
+        }
+
+        element.textContent = message || "";
+
+        element.classList.remove(
+            "hidden",
+            "bg-rose-500/10",
+            "border-rose-500/20",
+            "text-rose-400",
+            "bg-emerald-500/10",
+            "border-emerald-500/20",
+            "text-emerald-400",
+            "bg-amber-500/10",
+            "border-amber-500/20",
+            "text-amber-400",
+            "bg-sky-500/10",
+            "border-sky-500/20",
+            "text-sky-400"
+        );
+
+        if (!message) {
+            element.classList.add("hidden");
+            return;
+        }
+
+        const styles = {
+            error: [
+                "bg-rose-500/10",
+                "border-rose-500/20",
+                "text-rose-400"
+            ],
+            success: [
+                "bg-emerald-500/10",
+                "border-emerald-500/20",
+                "text-emerald-400"
+            ],
+            warning: [
+                "bg-amber-500/10",
+                "border-amber-500/20",
+                "text-amber-400"
+            ],
+            info: [
+                "bg-sky-500/10",
+                "border-sky-500/20",
+                "text-sky-400"
+            ]
+        };
+
+        element.classList.add(...(styles[type] || styles.info));
     }
 
     function setLoading(button, loading, message = "Aguarde...") {
@@ -105,15 +148,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function csrfToken() {
-        const meta = document.querySelector('meta[name="csrf-token"]');
+        const meta = document.querySelector(
+            'meta[name="csrf-token"]'
+        );
+
         if (meta) return meta.content;
 
-        const input = document.querySelector('input[name="csrf_token"]');
+        const input = document.querySelector(
+            'input[name="csrf_token"]'
+        );
+
         return input ? input.value : "";
     }
 
     // =====================================================
-    // API HTTP
+    // COMUNICACAO COM O FLASK
     // =====================================================
 
     async function api(url, options = {}) {
@@ -142,20 +191,29 @@ document.addEventListener("DOMContentLoaded", () => {
             cache: "no-store"
         });
 
-        const contentType = response.headers.get("content-type") || "";
+        const contentType =
+            response.headers.get("content-type") || "";
+
         let data;
 
         if (contentType.includes("application/json")) {
             data = await response.json();
         } else {
-            const text = await response.text();
-            data = { message: text };
+            const responseText = await response.text();
+
+            data = { message: responseText };
         }
 
         if (!response.ok || data.success === false) {
-            if (response.status === 401 || response.status === 403) {
+            if (response.status === 401) {
                 throw new Error(
-                    "Acesso negado ou sessão expirada. Verifique seu login."
+                    "Sessão expirada. Entre novamente no sistema."
+                );
+            }
+
+            if (response.status === 403) {
+                throw new Error(
+                    "Acesso negado. Verifique as permissões da conta."
                 );
             }
 
@@ -176,64 +234,64 @@ document.addEventListener("DOMContentLoaded", () => {
     function getConfigFromForm() {
         return {
             timeframe: $("timeframe")?.value || "5min",
-
-            window_candles: Number($("window_candles")?.value || 24),
-
+            window_candles: Number(
+                $("window_candles")?.value || 24
+            ),
             leaders: Number($("leaders")?.value || 4),
-
             followers_per_leader: Number(
                 $("followers_per_leader")?.value || 6
             ),
-
             min_similarity: Number(
                 $("min_similarity")?.value || 85
             ),
-
             update_seconds: Number(
                 $("update_seconds")?.value || 180
             ),
-
             closed_candles_only:
                 $("closed_candles_only")?.checked ?? true,
-
             automatic_pairs:
                 $("automatic_pairs")?.checked ?? true
         };
     }
 
     function fillConfigForm(config = {}) {
-        setValue("timeframe", config.timeframe ?? "5min");
-        setValue("window_candles", config.window_candles ?? 24);
-        setValue("leaders", config.leaders ?? 4);
+        const fields = {
+            timeframe: config.timeframe ?? "5min",
+            window_candles: config.window_candles ?? 24,
+            leaders: config.leaders ?? 4,
+            followers_per_leader:
+                config.followers_per_leader ?? 6,
+            min_similarity: config.min_similarity ?? 85,
+            update_seconds: config.update_seconds ?? 180
+        };
 
-        setValue(
-            "followers_per_leader",
-            config.followers_per_leader ?? 6
-        );
+        for (const [id, value] of Object.entries(fields)) {
+            if ($(id)) $(id).value = value;
+        }
 
-        setValue("min_similarity", config.min_similarity ?? 85);
-        setValue("update_seconds", config.update_seconds ?? 180);
+        if ($("closed_candles_only")) {
+            $("closed_candles_only").checked =
+                config.closed_candles_only ?? true;
+        }
 
-        setValue(
-            "closed_candles_only",
-            config.closed_candles_only ?? true
-        );
-
-        setValue(
-            "automatic_pairs",
-            config.automatic_pairs ?? true
-        );
+        if ($("automatic_pairs")) {
+            $("automatic_pairs").checked =
+                config.automatic_pairs ?? true;
+        }
     }
 
     async function loadConfig() {
         try {
             const response = await api("/api/config");
-            const config = response.config || response.settings || response;
+
+            const config =
+                response.config ||
+                response.settings ||
+                response;
 
             fillConfigForm(config);
-            updateKeyStatuses(config);
-
             updateMetrics(config, response);
+            updateKeyStatuses(config);
 
             return config;
         } catch (error) {
@@ -251,6 +309,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (event) event.preventDefault();
 
         const button = $("save-config");
+
         setLoading(button, true, "Salvando...");
 
         try {
@@ -279,8 +338,78 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =====================================================
-    // INDICADORES DO TOPO
+    // METRICAS
     // =====================================================
+
+    function getConfiguredKeysCount(config = {}, state = {}) {
+        if (Number.isFinite(Number(config.api_keys_count))) {
+            return Number(config.api_keys_count);
+        }
+
+        if (Number.isFinite(Number(state.api_keys_count))) {
+            return Number(state.api_keys_count);
+        }
+
+        const keys = config.api_keys || config.keys || [];
+
+        if (Array.isArray(keys)) {
+            return keys.filter((item) => {
+                if (typeof item === "boolean") return item;
+
+                return Boolean(
+                    item &&
+                    (
+                        item.configured === true ||
+                        item.has_key === true ||
+                        item.saved === true ||
+                        item.status === "configured" ||
+                        item.status === "ok"
+                    )
+                );
+            }).length;
+        }
+
+        if (keys && typeof keys === "object") {
+            return Object.values(keys).filter((item) => {
+                if (typeof item === "boolean") return item;
+
+                return Boolean(
+                    item &&
+                    (
+                        item.configured === true ||
+                        item.has_key === true ||
+                        item.saved === true ||
+                        item.status === "configured" ||
+                        item.status === "ok"
+                    )
+                );
+            }).length;
+        }
+
+        return 0;
+    }
+
+    function updateKeysCard(count) {
+        // O HTML atual ainda não possui um ID para esse número.
+        const cards = document.querySelectorAll("main > div > div");
+
+        for (const card of cards) {
+            const heading = card.querySelector("span");
+
+            if (
+                heading &&
+                heading.textContent.trim() === "Chaves Ativas"
+            ) {
+                const value = card.querySelector("p.text-sm");
+
+                if (value) {
+                    value.textContent = `${count} / 4`;
+                }
+
+                break;
+            }
+        }
+    }
 
     function updateMetrics(config = {}, state = {}) {
         setText("metric-leaders", config.leaders ?? "—");
@@ -297,79 +426,47 @@ document.addEventListener("DOMContentLoaded", () => {
                 : "—"
         );
 
-        const count =
-            config.api_keys_count ??
-            state.api_keys_count ??
-            getConfiguredKeysCount(config);
+        const count = getConfiguredKeysCount(config, state);
 
         setText("metric-keys", `${count}/4`);
-    }
-
-    function getConfiguredKeysCount(config = {}) {
-        const keys = config.api_keys || config.keys || [];
-
-        if (Array.isArray(keys)) {
-            return keys.filter((item) => {
-                if (typeof item === "boolean") return item;
-
-                return Boolean(
-                    item &&
-                    (
-                        item.configured === true ||
-                        item.has_key === true ||
-                        item.saved === true ||
-                        item.status === "configured"
-                    )
-                );
-            }).length;
-        }
-
-        if (keys && typeof keys === "object") {
-            return Object.values(keys).filter((item) => {
-                if (typeof item === "boolean") return item;
-
-                return Boolean(
-                    item &&
-                    (
-                        item.configured === true ||
-                        item.has_key === true ||
-                        item.saved === true
-                    )
-                );
-            }).length;
-        }
-
-        return 0;
+        updateKeysCard(count);
     }
 
     // =====================================================
     // CHAVES DE API
     // =====================================================
 
-    function updateKeyStatuses(config = {}) {
+    function getKeyEntry(config, number) {
         const keys = config.api_keys || config.keys || [];
 
-        for (let number = 1; number <= 4; number++) {
-            let entry = null;
-
-            if (Array.isArray(keys)) {
-                entry = keys.find((item) =>
+        if (Array.isArray(keys)) {
+            return (
+                keys.find((item) =>
                     Number(
                         item?.number ??
                         item?.key_number ??
                         item?.id
                     ) === number
-                );
+                ) ||
+                keys[number - 1] ||
+                null
+            );
+        }
 
-                if (!entry && keys[number - 1]) {
-                    entry = keys[number - 1];
-                }
-            } else if (keys && typeof keys === "object") {
-                entry =
-                    keys[`api_key_${number}`] ??
-                    keys[number] ??
-                    null;
-            }
+        if (keys && typeof keys === "object") {
+            return (
+                keys[`api_key_${number}`] ??
+                keys[number] ??
+                null
+            );
+        }
+
+        return null;
+    }
+
+    function updateKeyStatuses(config = {}) {
+        for (let number = 1; number <= 4; number++) {
+            const entry = getKeyEntry(config, number);
 
             const configured = Boolean(
                 entry === true ||
@@ -387,90 +484,51 @@ document.addEventListener("DOMContentLoaded", () => {
 
             setText(
                 `key-status-${number}`,
-                configured ? "Chave cadastrada" : "Não configurada"
+                configured ? "Cadastrada" : "Não configurada"
             );
         }
-
-        updateMetrics(config);
     }
 
     async function saveKey(number) {
-    const input = $(`api-key-${number}`);
-    const button = document.querySelector(`[data-save-key="${number}"]`);
-    const key = input ? input.value.trim() : "";
-
-    if (!key) {
-        showMessage("key-results", "Digite uma chave antes de salvar.", "warning");
-        return;
-    }
-
-    setLoading(button, true, "Salvando...");
-
-    try {
-        const response = await api(`/api/keys/${number}`, {
-            method: "POST",
-            body: JSON.stringify({ key: key, api_key: key })
-        });
-
-        if (input) input.value = ""; // Limpa o campo de entrada por segurança
-
-        showMessage(
-            "key-results",
-            response.message || `Chave ${number} salva com sucesso!`,
-            "success"
-        );
-
-        await loadConfig();
-        await refreshState();
-    } catch (error) {
-        showMessage(
-            "key-results",
-            `Erro ao salvar a chave ${number}: ${error.message || error}`,
-            "error"
-        );
-    } finally {
-        setLoading(button, false);
-    }
-}
-
-    async function testKey(number) {
         const input = $(`api-key-${number}`);
         const button = document.querySelector(
-            `[data-test-key="${number}"]`
+            `[data-save-key="${number}"]`
         );
 
         const key = input?.value.trim() || "";
 
-        setLoading(button, true, "Testando...");
+        if (!key) {
+            showMessage(
+                "key-results",
+                `Digite a chave da API ${number} antes de salvar.`,
+                "warning"
+            );
+            return;
+        }
+
+        setLoading(button, true, "Salvando...");
 
         try {
-            const options = { method: "POST" };
+            const response = await api(`/api/keys/${number}`, {
+                method: "POST",
+                body: JSON.stringify({ api_key: key })
+            });
 
-            if (key) {
-                options.body = JSON.stringify({ api_key: key });
-            }
-
-            const response = await api(
-                `/api/keys/test/${number}`,
-                options
-            );
+            if (input) input.value = "";
 
             showMessage(
                 "key-results",
                 response.message ||
-                    `Teste da chave ${number} concluído.`,
-                response.success === false ? "warning" : "success"
+                    `Chave ${number} salva.`,
+                "success"
             );
 
-            if (response.message) {
-                setText(`key-status-${number}`, response.message);
-            }
-
             await loadConfig();
+            await refreshState();
         } catch (error) {
             showMessage(
                 "key-results",
-                `Erro no teste da chave ${number}: ${error.message}`,
+                `Erro ao salvar a chave ${number}: ${error.message}`,
                 "error"
             );
         } finally {
@@ -478,8 +536,17 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    async function testKey(number) {
+        showMessage(
+            "key-results",
+            `O teste individual da API ${number} depende de uma rota própria no Flask. Use "Testar Todas" até essa rota estar implementada.`,
+            "warning"
+        );
+    }
+
     async function testAllKeys() {
         const button = $("test-all-keys");
+
         setLoading(button, true, "Testando...");
 
         try {
@@ -488,13 +555,38 @@ document.addEventListener("DOMContentLoaded", () => {
                 body: JSON.stringify({})
             });
 
+            const results = response.results;
+
+            let message = response.message || "Teste concluído.";
+
+            if (Array.isArray(results) && results.length > 0) {
+                message += "\n" + results.map((item) => {
+                    if (typeof item === "string") return item;
+
+                    const number =
+                        item.number ??
+                        item.key_number ??
+                        item.id ??
+                        "";
+
+                    const status =
+                        item.message ??
+                        item.status ??
+                        item.error ??
+                        "Resultado recebido";
+
+                    return `API ${number}: ${status}`;
+                }).join("\n");
+            }
+
             showMessage(
                 "key-results",
-                response.message || "Teste concluído.",
+                message,
                 response.success === false ? "warning" : "success"
             );
 
             await loadConfig();
+            await refreshState();
         } catch (error) {
             showMessage(
                 "key-results",
@@ -507,33 +599,58 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =====================================================
-    // ESTADO DA ANALISE
+    // CONTROLE DA ANALISE
     // =====================================================
 
     function setAnalysisStatus(enabled) {
         analysisEnabled = Boolean(enabled);
 
         setText(
-            "system-analysis-status",
-            analysisEnabled ? "Análise ativada" : "Análise desativada"
+            "statusText",
+            analysisEnabled ? "Ligada" : "Desligada"
         );
+
+        setText(
+            "system-analysis-status",
+            analysisEnabled
+                ? "Análise ativada"
+                : "Análise desativada"
+        );
+
+        const dot = $("statusDot");
+
+        if (dot) {
+            dot.classList.remove(
+                "bg-slate-500",
+                "bg-emerald-400",
+                "bg-rose-500"
+            );
+
+            dot.classList.add(
+                analysisEnabled ? "bg-emerald-400" : "bg-slate-500"
+            );
+        }
 
         const startButton = $("start-analysis");
         const stopButton = $("stop-analysis");
 
         if (startButton) {
             startButton.disabled = analysisEnabled;
+            startButton.classList.toggle("opacity-50", analysisEnabled);
+            startButton.classList.toggle("cursor-not-allowed", analysisEnabled);
         }
 
         if (stopButton) {
             stopButton.disabled = !analysisEnabled;
+            stopButton.classList.toggle("opacity-50", !analysisEnabled);
+            stopButton.classList.toggle("cursor-not-allowed", !analysisEnabled);
         }
     }
 
     async function changeAnalysisState(desiredEnabled) {
         if (requestInProgress) return;
 
-        if (Boolean(analysisEnabled) === Boolean(desiredEnabled)) {
+        if (analysisEnabled === Boolean(desiredEnabled)) {
             showMessage(
                 "analysis-message",
                 desiredEnabled
@@ -555,10 +672,11 @@ document.addEventListener("DOMContentLoaded", () => {
         );
 
         try {
-            // A rota atual /api/toggle alterna o estado.
             const response = await api("/api/toggle", {
                 method: "POST",
-                body: JSON.stringify({ enabled: desiredEnabled })
+                body: JSON.stringify({
+                    enabled: Boolean(desiredEnabled)
+                })
             });
 
             showMessage(
@@ -572,7 +690,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (error) {
             showMessage(
                 "analysis-message",
-                `Não foi possível alterar o estado: ${error.message}`,
+                `Não foi possível alterar a análise: ${error.message}`,
                 "error"
             );
         } finally {
@@ -639,7 +757,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderResults(state) {
-        // ID correto do dashboard atual.
         const container = $("results-area");
         if (!container) return;
 
@@ -661,17 +778,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (leaders.length === 0) {
             const message = state.analysis_enabled
-                ? "A análise está ativada, mas ainda não há resultados disponíveis."
-                : "Nenhum resultado disponível. Configure as chaves e verifique o estado do sistema.";
+                ? "Análise ativada. Aguardando resultados do analisador."
+                : "Nenhum resultado disponível. Configure as APIs e inicie a análise.";
 
             container.appendChild(
-                createElement("div", "empty-results", message)
+                createElement(
+                    "div",
+                    "col-span-full rounded-lg border border-slate-800 bg-slate-900/70 p-4 text-xs text-slate-400",
+                    message
+                )
             );
 
             return;
         }
-
-        const grid = createElement("div", "results-grid");
 
         leaders.forEach((leader, index) => {
             if (!leader || typeof leader !== "object") {
@@ -684,10 +803,18 @@ document.addEventListener("DOMContentLoaded", () => {
                 `Líder ${index + 1}`
             );
 
-            const card = createElement("article", "result-card");
-            const heading = createElement("h3", "", `${index + 1}. ${symbol}`);
+            const card = createElement(
+                "article",
+                "rounded-lg border border-slate-800 bg-slate-900/70 p-3 text-xs"
+            );
 
-            card.appendChild(heading);
+            card.appendChild(
+                createElement(
+                    "h3",
+                    "mb-2 font-bold text-sky-400",
+                    `Líder ${String(index + 1).padStart(2, "0")} — ${symbol}`
+                )
+            );
 
             const score = getFirst(
                 leader,
@@ -696,17 +823,18 @@ document.addEventListener("DOMContentLoaded", () => {
             );
 
             if (score !== null) {
-                const isSimilarity = (
+                const similarity =
                     "similarity" in leader ||
-                    "similarity_pct" in leader
-                );
-
-                const value = isSimilarity
-                    ? formatPercent(score)
-                    : formatNumber(score);
+                    "similarity_pct" in leader;
 
                 card.appendChild(
-                    createElement("p", "", `Pontuação: ${value}`)
+                    createElement(
+                        "p",
+                        "mb-1 text-slate-300",
+                        `${similarity ? "Similaridade" : "Pontuação"}: ${
+                            similarity ? formatPercent(score) : formatNumber(score)
+                        }`
+                    )
                 );
             }
 
@@ -725,7 +853,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 card.appendChild(
                     createElement(
                         "p",
-                        "",
+                        "mb-1 font-medium text-slate-300",
                         `Seguidores: ${followers.length}`
                     )
                 );
@@ -743,41 +871,88 @@ document.addEventListener("DOMContentLoaded", () => {
                     card.appendChild(
                         createElement(
                             "p",
-                            "",
+                            "ml-2 mt-1 text-slate-400",
                             `• ${followerName}`
                         )
                     );
                 });
             }
 
-            // Mostra outros campos recebidos sem executar HTML externo.
-            const knownKeys = new Set([
-                "symbol", "pair", "ticker", "name", "asset",
-                "score", "leader_score", "similarity", "similarity_pct",
-                "followers", "related_markets", "similar_markets", "children"
-            ]);
-
-            for (const [key, value] of Object.entries(leader)) {
-                if (knownKeys.has(key)) continue;
-                if (value === null || typeof value === "object") continue;
-
-                card.appendChild(
-                    createElement("p", "", `${key}: ${value}`)
-                );
-            }
-
-            grid.appendChild(card);
+            container.appendChild(card);
         });
-
-        container.appendChild(grid);
     }
 
     // =====================================================
-    // ATUALIZACAO DO PAINEL
+    // GRAFICO
+    // =====================================================
+
+    function initializeChart() {
+        const canvas = $("marketChart");
+
+        if (!canvas || typeof Chart === "undefined") return;
+
+        const context = canvas.getContext("2d");
+
+        marketChart = new Chart(context, {
+            type: "line",
+            data: {
+                labels: [],
+                datasets: [{
+                    label: "Atividade do mercado",
+                    data: [],
+                    borderColor: "#0284c7",
+                    borderWidth: 2,
+                    backgroundColor: "rgba(2, 132, 199, 0.15)",
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: "#64748b", font: { size: 10 } }
+                    },
+                    y: {
+                        grid: { color: "#1e293b" },
+                        ticks: { color: "#64748b", font: { size: 10 } }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateChart(state) {
+        if (!marketChart) return;
+
+        // Só atualiza com uma série temporal real enviada pelo backend.
+        const activity = state.activity_series;
+
+        if (!Array.isArray(activity)) return;
+
+        marketChart.data.labels = activity.map(
+            (item) => item.label ?? item.time ?? ""
+        );
+
+        marketChart.data.datasets[0].data = activity.map(
+            (item) => Number(item.value ?? item.volume ?? 0)
+        );
+
+        marketChart.update("none");
+    }
+
+    // =====================================================
+    // ATUALIZACAO DO ESTADO
     // =====================================================
 
     async function refreshState() {
-        if (requestInProgress) return;
+        if (requestInProgress) return null;
 
         requestInProgress = true;
 
@@ -798,30 +973,23 @@ document.addEventListener("DOMContentLoaded", () => {
                 state.updated_at ||
                 null;
 
-            setText(
-                "system-last-analysis",
-                formatDate(lastAnalysis)
-            );
+            setText("lastUpdate", formatDate(lastAnalysis));
 
             const error =
                 state.last_analysis_error ||
                 state.analysis_error ||
                 "";
 
-            setText(
-                "system-last-error",
-                error || "Nenhum erro registrado"
-            );
-
-            showMessage(
-                "analysis-error",
-                error,
-                error ? "error" : "info"
-            );
+            if (error) {
+                showMessage("analysis-error", error, "error");
+            } else {
+                showMessage("analysis-error", "", "info");
+            }
 
             updateMetrics(config, state);
             updateKeyStatuses(config);
             renderResults(state);
+            updateChart(state);
 
             return state;
         } catch (error) {
@@ -843,7 +1011,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =====================================================
-    // EVENTOS
+    // EVENTOS — UM UNICO CONJUNTO DE OUVINTES
     // =====================================================
 
     $("config-form")?.addEventListener("submit", saveConfig);
@@ -856,16 +1024,7 @@ document.addEventListener("DOMContentLoaded", () => {
         changeAnalysisState(false);
     });
 
-    $("refresh-state")?.addEventListener("click", async () => {
-        const button = $("refresh-state");
-
-        setLoading(button, true, "Atualizando...");
-
-        await loadConfig();
-        await refreshState();
-
-        setLoading(button, false);
-    });
+    $("test-all-keys")?.addEventListener("click", testAllKeys);
 
     for (let number = 1; number <= 4; number++) {
         document
@@ -877,13 +1036,26 @@ document.addEventListener("DOMContentLoaded", () => {
             ?.addEventListener("click", () => testKey(number));
     }
 
-    $("test-all-keys")?.addEventListener("click", testAllKeys);
+    $("refresh-state")?.addEventListener("click", async () => {
+        const button = $("refresh-state");
+
+        setLoading(button, true, "Atualizando...");
+
+        try {
+            await loadConfig();
+            await refreshState();
+        } finally {
+            setLoading(button, false);
+        }
+    });
 
     // =====================================================
-    // INICIALIZACAO E ATUALIZACAO AUTOMATICA
+    // INICIALIZACAO
     // =====================================================
 
     async function initializeDashboard() {
+        initializeChart();
+
         await loadConfig();
         await refreshState();
 
@@ -891,106 +1063,10 @@ document.addEventListener("DOMContentLoaded", () => {
             window.clearInterval(refreshTimer);
         }
 
-        // Consulta o estado a cada 10 segundos.
-        refreshTimer = window.setInterval(() => {
-            refreshState();
+        refreshTimer = window.setInterval(async () => {
+            await refreshState();
         }, 10000);
     }
 
     initializeDashboard();
-});
-
-
-document.addEventListener("DOMContentLoaded", () => {
-
-    // 1. Ouvinte para os botões de SALVAR CHAVE (ex: data-save-key="1")
-    document.querySelectorAll("[data-save-key]").forEach(button => {
-    button.addEventListener("click", async () => {
-        const keyNum = button.getAttribute("data-save-key");
-        const input = document.getElementById(`api-key-${keyNum}`);
-        if (!input) return;
-
-        const keyValue = input.value.trim();
-        if (!keyValue) {
-            alert("Digite uma chave antes de salvar.");
-            return;
-        }
-
-        button.textContent = "Salvando...";
-        button.disabled = true;
-
-        try {
-            // Obtém o token CSRF se houver no documento
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
-
-            const response = await fetch(`/api/keys/${keyNum}`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRFToken": csrfToken
-                },
-                body: JSON.stringify({ api_key: keyValue, key: keyValue })
-            });
-
-            const data = await response.json();
-
-            if (response.ok && data.success) {
-                alert(data.message || `Chave ${keyNum} salva com sucesso!`);
-                location.reload();
-            } else {
-                alert(data.error || data.message || "Erro ao salvar a chave.");
-                button.textContent = "Salvar";
-                button.disabled = false;
-            }
-        } catch (err) {
-            alert("Erro ao comunicar com o servidor: " + err.message);
-            button.textContent = "Salvar";
-            button.disabled = false;
-        }
-    });
-});
-
-    //2 Ouvinte para os botões INICIAR e PARAR
-document.querySelectorAll("button").forEach(btn => {
-    const text = btn.textContent.trim().toUpperCase();
-    if (text === "INICIAR" || text === "START") {
-        btn.addEventListener("click", () => toggleAnalysis(true));
-    }
-    if (text === "PARAR" || text === "STOP") {
-        btn.addEventListener("click", () => toggleAnalysis(false));
-    }
-});
-
-async function toggleAnalysis(enable) {
-    try {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
-
-        const response = await fetch("/api/toggle", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRFToken": csrfToken
-            },
-            body: JSON.stringify({ enabled: enable })
-        });
-
-        const data = await response.json();
-
-        if (response.ok && data.success) {
-            alert(enable ? "Análise iniciada com sucesso!" : "Análise interrompida.");
-            
-            // Atualiza os estados visuais na tela imediatamente sem precisar de dar F5
-            if (typeof refreshState === "function") refreshState();
-            if (typeof loadConfig === "function") loadConfig();
-            
-           // location.reload();
-           
-        } else {
-            alert(data.error || data.message || "Não foi possível alterar o estado da análise.");
-        }
-    } catch (err) {
-        alert("Erro ao comunicar com o servidor: " + err.message);
-    }
-}
-
 });
