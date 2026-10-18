@@ -330,11 +330,16 @@ def save_api_key(key_num):
     if not isinstance(key_value, str):
         return api_error("Formato de chave inválido.")
     key_value = key_value.strip()
-    if not key_value:
-        return api_error("Informe uma chave de API válida.")
+    
+    settings = get_settings()
+    
+    # Se o usuário enviou a máscara, significa que ele não alterou a chave, então mantemos a anterior
+    if key_value == "••••••••••••••••" or not key_value:
+        return jsonify({"success": True, "message": f"Chave 0{key_num} mantida com sucesso!"})
+
     if len(key_value) > 500:
         return api_error("A chave informada excede o tamanho permitido.")
-    settings = get_settings()
+        
     setattr(settings, API_KEY_FIELDS[key_num - 1], encrypt_secret(key_value))
     try:
         db.session.commit()
