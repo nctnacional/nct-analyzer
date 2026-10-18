@@ -272,7 +272,7 @@ def save_api_config(settings, data):
     incoming_keys = data.get("api_keys")
     if incoming_keys is not None:
         if not isinstance(incoming_keys, list) or len(incoming_keys) != 4:
-            return api_error("Envie exatamente quatro posições para as chaves.")
+            return api_error("Envie exatamente quatro posições para las chaves.")
         for field, value in zip(API_KEY_FIELDS, incoming_keys):
             if value is None or value == "":
                 continue  # vazio preserva a chave existente
@@ -414,10 +414,18 @@ def save_api_key(key_num):
 def test_one_key(key_num):
     if key_num not in range(1, 5):
         return api_error("Número de chave inválido.")
+    
     settings = get_settings()
-    key = get_user_api_keys(settings)[key_num - 1]
+    data = request.get_json(silent=True) or {}
+    # Permite testar a chave enviada no corpo do request ou a que já está salva
+    key = data.get("api_key", data.get("key", "")).strip()
+    
     if not key:
-        return jsonify({"success": True, "key_number": key_num, "configured": False, "test_success": False, "message": "Chave não configurada ou não pôde ser descriptografada."})
+        key = get_user_api_keys(settings)[key_num - 1]
+
+    if not key:
+        return jsonify({"success": True, "key_number": key_num, "configured": False, "test_success": False, "message": "Chave não configurada ou não informada."})
+    
     try:
         result = TwelveDataSource(api_keys=[key]).test_connection()
         if not isinstance(result, dict):
@@ -482,7 +490,6 @@ def api_toggle():
     keys = get_user_api_keys(settings)
     if requested and not any(keys):
         return api_error("Configure pelo menos uma chave de API válida antes de iniciar.")
-    # Este endpoint muda o estado salvo; ele não inicia sozinho um worker de análise.
     settings.analysis_enabled = requested
     try:
         db.session.commit()

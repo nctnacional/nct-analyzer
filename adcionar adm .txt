@@ -1,0 +1,9 @@
+No menu lateral esquerdo, clica em Shell (isto abre um terminal online direto no servidor onde a aplicação está
+
+python
+
+from app_2 import db, User
+user = User.query.filter_by(email="o_teu_email@exemplo.com").first()
+user.is_admin = True
+db.session.commit()
+exit()
