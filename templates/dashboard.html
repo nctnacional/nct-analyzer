@@ -46,7 +46,7 @@
             </div>
         </div>
 
-        <!-- FRASE COM O DOBRO DO TAMANHO ANTERIOR (text-xs / 12px -> text-sm / 14px ou text-base / 16px mais destacada com px-6 py-2) -->
+        <!-- FRASE COM O DOBRO DO TAMANHO ANTERIOR -->
         <div class="hidden md:flex items-center gap-2.5 bg-[#11192e] border border-slate-800 px-6 py-2 rounded-full text-sm text-sky-400 font-semibold tracking-wide">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
             SEJA SEMPRE MELHOR QUE VOCÊ FOI ONTEM
@@ -139,7 +139,7 @@
         <main class="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col justify-between">
             
             <div class="space-y-4">
-                <!-- TOPO: CONTROLE DA ANÁLISE + MÉTRICAS (ALTURA REDUZIDA EM ~15%) -->
+                <!-- TOPO: CONTROLE DA ANÁLISE + MÉTRICAS -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     
                     <!-- Controle de Análise -->
@@ -187,7 +187,7 @@
 
                 </div>
 
-                <!-- CHAVES DE API INDIVIDUAIS (ALTURA REDUZIDA EM ~15%) -->
+                <!-- CHAVES DE API INDIVIDUAIS -->
                 <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-3">
                     <div class="flex items-center justify-between mb-2">
                         <h3 class="text-xs font-bold text-white flex items-center gap-2">
@@ -209,7 +209,7 @@
                             </div>
                             <input id="api-key-1" type="password" placeholder="Chave 01" class="w-full bg-[#090d16] border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 mb-2 outline-none focus:border-sky-500">
                             <div class="flex gap-1">
-                                <button type="button" data-test-key="1" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
+                                <button type="button" onclick="testApiKey(1)" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
                                 <button type="button" data-save-key="1" class="flex-1 py-0.5 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
                             </div>
                         </div>
@@ -222,7 +222,7 @@
                             </div>
                             <input id="api-key-2" type="password" placeholder="Chave 02" class="w-full bg-[#090d16] border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 mb-2 outline-none focus:border-sky-500">
                             <div class="flex gap-1">
-                                <button type="button" data-test-key="2" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
+                                <button type="button" onclick="testApiKey(2)" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
                                 <button type="button" data-save-key="2" class="flex-1 py-0.5 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
                             </div>
                         </div>
@@ -235,7 +235,7 @@
                             </div>
                             <input id="api-key-3" type="password" placeholder="Chave 03" class="w-full bg-[#090d16] border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 mb-2 outline-none focus:border-sky-500">
                             <div class="flex gap-1">
-                                <button type="button" data-test-key="3" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
+                                <button type="button" onclick="testApiKey(3)" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
                                 <button type="button" data-save-key="3" class="flex-1 py-0.5 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
                             </div>
                         </div>
@@ -248,7 +248,7 @@
                             </div>
                             <input id="api-key-4" type="password" placeholder="Chave 04" class="w-full bg-[#090d16] border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 mb-2 outline-none focus:border-sky-500">
                             <div class="flex gap-1">
-                                <button type="button" data-test-key="4" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
+                                <button type="button" onclick="testApiKey(4)" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
                                 <button type="button" data-save-key="4" class="flex-1 py-0.5 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
                             </div>
                         </div>
@@ -337,8 +337,6 @@
         </main>
     </div>
 
-    
-
     <!-- Script Chart.js -->
     <script>
         const ctx = document.getElementById('marketChart').getContext('2d');
@@ -371,6 +369,49 @@
                 }
             }
         });
+
+        // Função para teste individual de chaves de API
+        async function testApiKey(keyNum) {
+            const inputElement = document.getElementById(`api-key-${keyNum}`);
+            const keyValue = inputElement ? inputElement.value.trim() : "";
+            const statusElement = document.getElementById(`key-status-${keyNum}`);
+            
+            if (statusElement) {
+                statusElement.textContent = "A testar...";
+                statusElement.className = "text-[9px] text-sky-400 font-semibold";
+            }
+
+            try {
+                const response = await fetch(`/api/keys/test/${keyNum}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ""
+                    },
+                    body: JSON.stringify({ api_key: keyValue })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.test_success) {
+                    if (statusElement) {
+                        statusElement.textContent = "Conectada ✓";
+                        statusElement.className = "text-[9px] text-emerald-400 font-semibold";
+                    }
+                } else {
+                    if (statusElement) {
+                        statusElement.textContent = "Falhou ✗";
+                        statusElement.className = "text-[9px] text-rose-400 font-semibold";
+                    }
+                }
+            } catch (error) {
+                console.error("Erro ao testar chave:", error);
+                if (statusElement) {
+                    statusElement.textContent = "Erro ✗";
+                    statusElement.className = "text-[9px] text-rose-400 font-semibold";
+                }
+            }
+        }
     </script>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
