@@ -280,14 +280,49 @@ class TwelveDataSource:
             if not normalized_symbol:
                 continue
 
-            # Distribui rotativamente os pares pelas chaves cadastradas pelo usuário
-            active_key = [keys[i % len(keys)]]
+            # Seleciona de forma rotativa a chave a ser usada para este par específico
+            current_key = keys[i % len(keys)]
             
-            candles = self.get_candles(
-                normalized_symbol,
-                interval=interval,
-                outputsize=outputsize,
+            # Faz a requisição forçando o uso desta chave específica
+            payload = self._request(
+                "time_series",
+                {
+                    "symbol": normalized_symbol,
+                    "interval": interval,
+                    "outputsize": outputsize,
+                    "format": "JSON",
+                },
+                api_keys=[current_key]
             )
+
+            if not payload:
+                results[normalized_symbol] = []
+                continue
+
+            values = payload.get("values", [])
+            if not isinstance(values, list):
+                results[normalized_symbol] = []
+                continue
+
+            candles = []
+            for item in values:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    candle = {
+                        "datetime": item.get("datetime"),
+                        "open": float(item["open"]),
+                        "high": float(item["high"]),
+                        "low": float(item["low"]),
+                        "close": float(item["close"]),
+                    }
+                    if item.get("volume") not in (None, ""):
+                        candle["volume"] = float(item["volume"])
+                    candles.append(candle)
+                except (KeyError, TypeError, ValueError):
+                    continue
+
+            candles.reverse()
             results[normalized_symbol] = candles
 
         return results
