@@ -638,7 +638,7 @@ def api_toggle():
         return api_error("Informe enabled como verdadeiro ou falso.")
 
     if requested and not any([settings.api_key_1, settings.api_key_2, settings.api_key_3, settings.api_key_4]):
-    return api_error("Configure pelo menos uma chave de API antes de iniciar.")
+        return api_error("Configure pelo menos uma chave de API antes de iniciar.")
 
     settings.analysis_enabled = requested
     db.session.commit()
