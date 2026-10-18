@@ -443,8 +443,11 @@ def api_toggle():
 def api_state():
     settings = get_settings()
     config = settings_to_dict(settings)
-    keys = get_user_api_keys(settings)
-    config["api_keys_count"] = sum(1 for key in keys if key)
+    
+    # Conta diretamente quantas chaves existem preenchidas na base de dados
+    keys_list = [settings.api_key_1, settings.api_key_2, settings.api_key_3, settings.api_key_4]
+    config["api_keys_count"] = sum(1 for k in keys_list if k and k.strip() != "")
+    
     return jsonify({
         "success": True,
         "user": {"email": current_user.email, "is_admin": current_user.is_admin},
