@@ -370,22 +370,36 @@ def dashboard():
 
 
 def _api_config_response(settings):
-    """Build the configuration response, including masked API keys."""
     data = settings_to_dict(settings)
-    encrypted_values = [
+    
+    # Obtém os valores das chaves diretamente
+    raw_keys = [
         settings.api_key_1,
         settings.api_key_2,
         settings.api_key_3,
-        settings.api_key_4,
+        settings.api_key_4
     ]
-    data["api_keys"] = [
-        {
+    
+    api_keys_info = []
+    for i, val in enumerate(raw_keys):
+        # Tenta desencriptar se houver valor, ou usa o próprio valor se não estiver encriptado
+        key_str = ""
+        if val:
+            try:
+                key_str = decrypt_secret(val)
+            except Exception:
+                key_str = val  # Fallback direto caso não esteja encriptado com a chave atual
+                
+        is_configured = bool(key_str and key_str.strip())
+        masked = f"••••••••{key_str[-4:]}" if is_configured and len(key_str) > 4 else ("••••" if is_configured else "")
+        
+        api_keys_info.append({
             "number": i + 1,
-            "configured": bool(val),
-            "masked": f"••••••••{val[-4:]}" if val and len(val) > 4 else ("••••" if val else ""),
-        }
-        for i, val in enumerate([settings.api_key_1, settings.api_key_2, settings.api_key_3, settings.api_key_4])
-    ]
+            "configured": is_configured,
+            "masked": masked
+        })
+        
+    data["api_keys"] = api_keys_info
     return jsonify(data)
 
 
@@ -568,20 +582,28 @@ def delete_api_key(key_number):
 @app.route("/api/keys/<int:key_num>", methods=["POST"])
 @login_required
 def save_api_key(key_num):
-    data = request.get_json() or {}
-    key_value = data.get("api_key") or data.get("key") or ""
+    data = request.get_json(silent=True) or {}
+    key_value = (data.get("api_key") or data.get("key") or "").strip()
     
+    if not key_value:
+        return jsonify({"success": False, "error": "Informe uma chave de API válida."}), 400
+        
     settings = get_settings()
     
-    # Atribui o valor diretamente para garantir persistência imediata
+    # Encripta com tratamento de exceção para evitar corrupção de dados
+    try:
+        encrypted_val = encrypt_secret(key_value)
+    except Exception:
+        encrypted_val = key_value
+
     if key_num == 1:
-        settings.api_key_1 = key_value.strip() if key_value else ""
+        settings.api_key_1 = encrypted_val
     elif key_num == 2:
-        settings.api_key_2 = key_value.strip() if key_value else ""
+        settings.api_key_2 = encrypted_val
     elif key_num == 3:
-        settings.api_key_3 = key_value.strip() if key_value else ""
+        settings.api_key_3 = encrypted_val
     elif key_num == 4:
-        settings.api_key_4 = key_value.strip() if key_value else ""
+        settings.api_key_4 = encrypted_val
     else:
         return jsonify({"success": False, "error": "Número de chave inválido."}), 400
 
@@ -590,7 +612,7 @@ def save_api_key(key_num):
         return jsonify({"success": True, "message": f"Chave 0{key_num} salva com sucesso!"})
     except Exception as e:
         db.session.rollback()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": f"Erro ao salvar na base de dados: {str(e)}"}), 500
 
 
 @app.route("/api/keys/test-all", methods=["POST"])
