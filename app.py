@@ -506,16 +506,22 @@ def background_analyzer():
             with app.app_context():
                 settings_list = UserSettings.query.filter_by(analysis_enabled=True).all()
                 for settings in settings_list:
+                    # Coleta de todas as chaves preenchidas e válidas
                     keys = [decrypt_secret(getattr(settings, f)) for f in API_KEY_FIELDS]
-                    valid_keys = [k for k in keys if k]
+                    valid_keys = [k.strip() for k in keys if k and isinstance(k, str) and k.strip() != "••••••••••••••••"]
+                    
                     if not valid_keys:
+                        settings.last_analysis_error = "Nenhuma chave de API válida configurada para executar a análise."
+                        db.session.commit()
                         continue
                     
                     ds = TwelveDataSource(api_keys=valid_keys)
                     pairs = settings.pairs_json or DEFAULT_PAIRS
+                    
+                    # Executa a busca dos candles
                     data = ds.get_candles_batch(pairs, interval=settings.timeframe, outputsize=settings.window_candles)
                     
-                    if data:
+                    if data and any(data.values()):
                         res = analyze_market(
                             market_data=data,
                             window=settings.window_candles,
@@ -527,10 +533,13 @@ def background_analyzer():
                         settings.last_analysis_at = datetime.now(timezone.utc)
                         settings.last_analysis_error = None
                         db.session.commit()
+                    else:
+                        settings.last_analysis_error = ds.last_error or "Falha ao obter dados da Twelve Data (limite de requisições ou símbolo inválido)."
+                        db.session.commit()
         except Exception as e:
             app.logger.exception('Erro na thread de análise: %s', e)
         time.sleep(30)
-
+        
 analyzer_thread = threading.Thread(target=background_analyzer, daemon=True)
 analyzer_thread.start()
 
