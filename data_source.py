@@ -268,7 +268,8 @@ class TwelveDataSource:
         interval: str = "5min",
         outputsize: int = 12,
     ) -> Dict[str, List[Dict[str, Any]]]:
-        """Consulta vários símbolos distribuindo as chaves disponíveis para respeitar o limite de 8 req/min."""
+        """Consulta símbolos distribuindo pelas chaves com espaçamento seguro."""
+        import time
         results = {}
         keys = [k for k in self.api_keys if k and k.strip()]
         
@@ -280,10 +281,8 @@ class TwelveDataSource:
             if not normalized_symbol:
                 continue
 
-            # Seleciona de forma rotativa a chave a ser usada para este par específico
             current_key = keys[i % len(keys)]
             
-            # Faz a requisição forçando o uso desta chave específica
             payload = self._request(
                 "time_series",
                 {
@@ -324,6 +323,9 @@ class TwelveDataSource:
 
             candles.reverse()
             results[normalized_symbol] = candles
+            
+            # Pequena pausa de 1 segundo entre pares para respeitar rigorosamente o limite da API gratuita
+            time.sleep(1)
 
         return results
 
