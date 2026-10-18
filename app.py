@@ -42,6 +42,19 @@ else:
     final_db_url = "sqlite:///nct_online.db"
 
 app.config["SQLALCHEMY_DATABASE_URI"] = final_db_url
+
+if os.environ.get("DATABASE_URL", "").strip():
+    app.logger.info(
+        "DIAGNOSTICO_DB: DATABASE_URL configurada; "
+        "tipo=%s",
+        final_db_url.split(":", 1)[0]
+    )
+else:
+    app.logger.error(
+        "DIAGNOSTICO_DB: DATABASE_URL ausente; "
+        "aplicacao pode usar SQLite."
+    )
+    
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
