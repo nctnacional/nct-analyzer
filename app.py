@@ -454,8 +454,8 @@ def _apply_config_api_keys(settings, incoming_keys):
         setattr(settings, name, encrypt_secret(value.strip()))
 
     if not any([settings.api_key_1, settings.api_key_2, settings.api_key_3, settings.api_key_4]):
-    return "Pelo menos uma chave de API deve ser configurada."
-    
+        return "Pelo menos uma chave de API deve ser configurada."
+
     return None
 
 
