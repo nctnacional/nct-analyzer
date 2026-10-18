@@ -23,6 +23,7 @@ load_dotenv()
 
 app = Flask(__name__)
 
+# Produção: defina SECRET_KEY e ENCRYPTION_KEY como variáveis persistentes no Render.
 secret_key = os.environ.get("SECRET_KEY", "").strip()
 if not secret_key:
     if os.environ.get("RENDER") or os.environ.get("FLASK_ENV") == "production":
@@ -30,7 +31,7 @@ if not secret_key:
     secret_key = "dev-only-change-this-secret-key"
 app.config["SECRET_KEY"] = secret_key
 
-app.config["WTF_CSRF_ENABLED"] = False
+app.config["WTF_CSRF_ENABLED"] = False  # Compatibilidade com o painel JSON atual; reative ao incluir tokens CSRF em todos os formulários.
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("RENDER"))
@@ -56,6 +57,8 @@ login_manager.login_view = "login"
 login_manager.login_message = "Faça login para continuar."
 login_manager.login_message_category = "warning"
 
+# A chave deve ser persistente. Nunca gerar uma nova automaticamente em produção,
+# pois isso impediria a descriptografia das credenciais já armazenadas.
 encryption_key = os.environ.get("ENCRYPTION_KEY", "").strip()
 if encryption_key:
     try:
@@ -65,6 +68,7 @@ if encryption_key:
 else:
     if os.environ.get("RENDER") or os.environ.get("FLASK_ENV") == "production":
         raise RuntimeError("Defina ENCRYPTION_KEY persistente nas variáveis de ambiente.")
+    # Desenvolvimento local apenas. Para manter credenciais entre reinícios, configure ENCRYPTION_KEY.
     cipher = Fernet(Fernet.generate_key())
     app.logger.warning("ENCRYPTION_KEY ausente: chave temporária de desenvolvimento em uso.")
 
@@ -271,7 +275,7 @@ def save_api_config(settings, data):
             return api_error("Envie exatamente quatro posições para as chaves.")
         for field, value in zip(API_KEY_FIELDS, incoming_keys):
             if value is None or value == "":
-                continue
+                continue  # vazio preserva a chave existente
             if not isinstance(value, str) or not value.strip() or len(value) > 500:
                 return api_error("Uma chave informada possui formato inválido.")
             setattr(settings, field, encrypt_secret(value.strip()))
@@ -404,22 +408,16 @@ def save_api_key(key_num):
         db.session.rollback()
         app.logger.exception("Falha ao salvar a chave %s.", key_num)
         return api_error("Não foi possível salvar a chave.", 500)
+    return jsonify({"success": True, "message": f"Chave 0{key_num} salva com sucesso!"})
 
 
 def test_one_key(key_num):
     if key_num not in range(1, 5):
         return api_error("Número de chave inválido.")
-    
     settings = get_settings()
-    data = request.get_json(silent=True) or {}
-    key = data.get("api_key", data.get("key", "")).strip()
-    
+    key = get_user_api_keys(settings)[key_num - 1]
     if not key:
-        key = get_user_api_keys(settings)[key_num - 1]
-
-    if not key:
-        return jsonify({"success": True, "key_number": key_num, "configured": False, "test_success": False, "message": "Chave não configurada ou não informada."})
-    
+        return jsonify({"success": True, "key_number": key_num, "configured": False, "test_success": False, "message": "Chave não configurada ou não pôde ser descriptografada."})
     try:
         result = TwelveDataSource(api_keys=[key]).test_connection()
         if not isinstance(result, dict):
@@ -484,6 +482,7 @@ def api_toggle():
     keys = get_user_api_keys(settings)
     if requested and not any(keys):
         return api_error("Configure pelo menos uma chave de API válida antes de iniciar.")
+    # Este endpoint muda o estado salvo; ele não inicia sozinho um worker de análise.
     settings.analysis_enabled = requested
     try:
         db.session.commit()
@@ -611,6 +610,7 @@ def not_found(_error):
 
 @app.errorhandler(Exception)
 def handle_exception(error):
+    # Log interno para diagnóstico; nunca enviar traceback ao navegador.
     app.logger.exception("Erro não tratado na aplicação: %s", error)
     if request.path.startswith("/api/"):
         return jsonify({"success": False, "error": "Erro interno. Tente novamente."}), 500
