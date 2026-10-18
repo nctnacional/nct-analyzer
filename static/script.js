@@ -1,4 +1,3 @@
-
 "use strict";
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -10,7 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let marketChart = null;
 
     // =====================================================
-    // UTILITARIOS
+    // UTILITÁRIOS
     // =====================================================
 
     function setText(id, value) {
@@ -57,7 +56,6 @@ document.addEventListener("DOMContentLoaded", () => {
     function showMessage(id, message, type = "info") {
         let element = $(id);
 
-        // Cria a área de mensagem se ela não existir no HTML.
         if (!element) {
             const anchor =
                 id === "config-message"
@@ -162,7 +160,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =====================================================
-    // COMUNICACAO COM O FLASK
+    // COMUNICAÇÃO COM O FLASK
     // =====================================================
 
     async function api(url, options = {}) {
@@ -228,7 +226,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =====================================================
-    // CONFIGURACOES
+    // CONFIGURAÇÕES
     // =====================================================
 
     function getConfigFromForm() {
@@ -266,7 +264,7 @@ document.addEventListener("DOMContentLoaded", () => {
         };
 
         for (const [id, value] of Object.entries(fields)) {
-            if ($(id)) $(id).value = value;
+            if ($(id))$(id).value = value;
         }
 
         if ($("closed_candles_only")) {
@@ -338,7 +336,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =====================================================
-    // METRICAS
+    // MÉTRICAS
     // =====================================================
 
     function getConfiguredKeysCount(config = {}, state = {}) {
@@ -390,7 +388,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateKeysCard(count) {
-        // O HTML atual ainda não possui um ID para esse número.
         const cards = document.querySelectorAll("main > div > div");
 
         for (const card of cards) {
@@ -482,10 +479,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 )
             );
 
-            setText(
-                `key-status-${number}`,
-                configured ? "Cadastrada" : "Não configurada"
-            );
+            const statusSpan = $(`key-status-${number}`);
+            if (statusSpan && statusSpan.textContent !== "Conectada ✓" && statusSpan.textContent !== "Falhou ✗") {
+                statusSpan.textContent = configured ? "Configurada ✓" : "Não configurada";
+                statusSpan.className = configured ? "text-[9px] text-emerald-400 font-semibold" : "text-[9px] text-slate-500";
+            }
         }
     }
 
@@ -518,8 +516,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             showMessage(
                 "key-results",
-                response.message ||
-                    `Chave ${number} salva.`,
+                response.message || `Chave ${number} salva com sucesso!`,
                 "success"
             );
 
@@ -537,11 +534,62 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function testKey(number) {
-        showMessage(
-            "key-results",
-            `O teste individual da API ${number} depende de uma rota própria no Flask. Use "Testar Todas" até essa rota estar implementada.`,
-            "warning"
-        );
+        const input = $(`api-key-${number}`);
+        const button = document.querySelector(`[data-test-key="${number}"]`);
+        const statusSpan = $(`key-status-${number}`);
+
+        const key = input?.value.trim() || "";
+
+        if (statusSpan) {
+            statusSpan.textContent = "A testar...";
+            statusSpan.className = "text-[9px] text-sky-400 font-semibold";
+        }
+
+        setLoading(button, true, "Testando...");
+
+        try {
+            const response = await api(`/api/keys/test/${number}`, {
+                method: "POST",
+                body: JSON.stringify({ api_key: key })
+            });
+
+            if (response.success && response.test_success) {
+                if (statusSpan) {
+                    statusSpan.textContent = "Conectada ✓";
+                    statusSpan.className = "text-[9px] text-emerald-400 font-semibold";
+                }
+                showMessage(
+                    "key-results",
+                    `API ${number}: Conexão com a Twelve Data confirmada com sucesso.`,
+                    "success"
+                );
+            } else {
+                if (statusSpan) {
+                    statusSpan.textContent = "Falhou ✗";
+                    statusSpan.className = "text-[9px] text-rose-400 font-semibold";
+                }
+                showMessage(
+                    "key-results",
+                    `API ${number}: ${response.message || "Falha ao validar chave."}`,
+                    "error"
+                );
+            }
+
+            await loadConfig();
+            await refreshState();
+        } catch (error) {
+            if (statusSpan) {
+                statusSpan.textContent = "Falhou ✗";
+                statusSpan.className = "text-[9px] text-rose-400 font-semibold";
+            }
+            showMessage(
+                "key-results",
+                `Erro ao testar a chave ${number}: ${error.message}`,
+                "error"
+            );
+        } finally {
+            setLoading(button, false);
+        }
     }
 
     async function testAllKeys() {
@@ -599,7 +647,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =====================================================
-    // CONTROLE DA ANALISE
+    // CONTROLE DA ANÁLISE
     // =====================================================
 
     function setAnalysisStatus(enabled) {
@@ -883,7 +931,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =====================================================
-    // GRAFICO
+    // GRÁFICO
     // =====================================================
 
     function initializeChart() {
@@ -931,7 +979,6 @@ document.addEventListener("DOMContentLoaded", () => {
     function updateChart(state) {
         if (!marketChart) return;
 
-        // Só atualiza com uma série temporal real enviada pelo backend.
         const activity = state.activity_series;
 
         if (!Array.isArray(activity)) return;
@@ -948,7 +995,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =====================================================
-    // ATUALIZACAO DO ESTADO
+    // ATUALIZAÇÃO DO ESTADO
     // =====================================================
 
     async function refreshState() {
@@ -1011,7 +1058,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =====================================================
-    // EVENTOS — UM UNICO CONJUNTO DE OUVINTES
+    // EVENTOS
     // =====================================================
 
     $("config-form")?.addEventListener("submit", saveConfig);
@@ -1050,7 +1097,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // =====================================================
-    // INICIALIZACAO
+    // INICIALIZAÇÃO
     // =====================================================
 
     async function initializeDashboard() {
