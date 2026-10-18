@@ -567,41 +567,6 @@ def save_api_key(key_num):
     return response
 
 
-@app.route("/api/keys/<int:key_num>", methods=["POST"])
-@login_required
-def save_api_key(key_num):
-    data = request.get_json(silent=True) or {}
-    key_value = (data.get("api_key") or data.get("key") or "").strip()
-    
-    if not key_value:
-        return jsonify({"success": False, "error": "Informe uma chave de API válida."}), 400
-        
-    settings = get_settings()
-    
-    # Encripta com tratamento de exceção para evitar corrupção de dados
-    try:
-        encrypted_val = encrypt_secret(key_value)
-    except Exception:
-        encrypted_val = key_value
-
-    if key_num == 1:
-        settings.api_key_1 = encrypted_val
-    elif key_num == 2:
-        settings.api_key_2 = encrypted_val
-    elif key_num == 3:
-        settings.api_key_3 = encrypted_val
-    elif key_num == 4:
-        settings.api_key_4 = encrypted_val
-    else:
-        return jsonify({"success": False, "error": "Número de chave inválido."}), 400
-
-    try:
-        db.session.commit()
-        return jsonify({"success": True, "message": f"Chave 0{key_num} salva com sucesso!"})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"success": False, "error": f"Erro ao salvar na base de dados: {str(e)}"}), 500
-
 
 @app.route("/api/keys/test-all", methods=["POST"])
 @login_required
