@@ -32,10 +32,10 @@
         body { background-color: #090d16; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
     </style>
 </head>
-<body class="bg-[#090d16] text-slate-100 min-h-screen flex flex-col antialiased">
+<body class="bg-[#090d16] text-slate-100 min-h-screen flex flex-col antialiased overflow-x-hidden">
 
     <!-- CABEÇALHO SUPERIOR -->
-    <header class="h-16 bg-[#0c1220] border-b border-slate-800/80 px-6 flex items-center justify-between shrink-0">
+    <header class="h-16 bg-[#0c1220] border-b border-slate-800/80 px-4 sm:px-6 flex items-center justify-between shrink-0">
         <div class="flex items-center gap-3">
             <div class="w-11 h-8 rounded-lg bg-sky-600 flex items-center justify-center font-bold text-white text-xs tracking-wider shadow-lg shadow-sky-600/30">
                 NCT
@@ -52,26 +52,25 @@
             SEJA SEMPRE MELHOR QUE VOCÊ FOI ONTEM
         </div>
 
-        <div class="flex items-center gap-3">
-          
-            <a href="{{ url_for('admin') }}" class="px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-semibold hover:bg-amber-500/20 transition">
+        <div class="flex items-center gap-2 sm:gap-3">
+            <a href="{{ url_for('admin') }}" class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-semibold hover:bg-amber-500/20 transition">
                 Painel Admin
             </a>
             
             <form method="POST" action="{{ url_for('logout') }}" style="margin:0;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold hover:bg-rose-500/20 transition">
+                <button type="submit" class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold hover:bg-rose-500/20 transition">
                     Sair
                 </button>
             </form>
         </div>
     </header>
 
-    <!-- LAYOUT PRINCIPAL (DUAS COLUNAS: CONFIGURAÇÕES À ESQUERDA + CONTEÚDO À DIREITA) -->
-    <div class="flex flex-1 overflow-hidden">
+    <!-- LAYOUT PRINCIPAL (FLEX-COL NO MOBILE, FLEX-ROW NO DESKTOP) -->
+    <div class="flex flex-col lg:flex-row flex-1 lg:overflow-hidden">
         
-        <!-- COLUNA ESQUERDA: CONFIGURAÇÕES DA ANÁLISE (LARGURA FIXA DE 320px) -->
-        <aside class="w-80 bg-[#0c1220] border-r border-slate-800/80 p-5 flex flex-col shrink-0 overflow-y-auto">
+        <!-- COLUNA ESQUERDA: CONFIGURAÇÕES DA ANÁLISE -->
+        <aside class="w-full lg:w-80 bg-[#0c1220] border-b lg:border-b-0 lg:border-r border-slate-800/80 p-4 sm:p-5 flex flex-col shrink-0 lg:overflow-y-auto">
             <div>
                 <div class="flex items-center gap-2 mb-4 text-xs font-bold text-sky-400 uppercase tracking-wider">
                     <span>⚙</span> Configuração da Análise
@@ -136,19 +135,19 @@
         </aside>
 
         <!-- COLUNA DIREITA: DASHBOARD PRINCIPAL -->
-        <main class="flex-1 overflow-y-auto p-6 space-y-4 flex flex-col justify-between">
+        <main class="flex-1 w-full lg:overflow-y-auto p-4 sm:p-6 space-y-4 flex flex-col justify-between">
             
             <div class="space-y-4">
                 <!-- TOPO: CONTROLE DA ANÁLISE + MÉTRICAS -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     
                     <!-- Controle de Análise -->
-                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
+                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between min-h-[90px]">
                         <div class="flex items-center justify-between mb-1">
                             <span class="text-[11px] font-medium text-slate-400">Controle da Análise</span>
                             <span id="statusDot" class="w-2 h-2 rounded-full bg-slate-500"></span>
                         </div>
-                        <p id="statusText" class="text-xs font-bold text-white mb-1">Desligada</p>
+                        <p id="statusText" class="text-xs font-bold text-white mb-2">Desligada</p>
                         <div class="flex gap-2">
                             <button id="start-analysis" type="button" class="flex-1 py-1 rounded bg-sky-600 hover:bg-sky-500 text-white font-semibold text-[10px] transition">INICIAR</button>
                             <button id="stop-analysis" type="button" disabled class="flex-1 py-1 rounded bg-rose-600/30 text-slate-400 font-semibold text-[10px] cursor-not-allowed transition">PARAR</button>
@@ -156,7 +155,7 @@
                     </div>
 
                     <!-- Status de Execução -->
-                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
+                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between min-h-[90px]">
                         <div class="flex items-center justify-between mb-1">
                             <span class="text-[11px] font-medium text-slate-400">Execução</span>
                             <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -166,7 +165,7 @@
                     </div>
 
                     <!-- Líderes e Seguidores -->
-                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
+                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between min-h-[90px]">
                         <div class="flex items-center justify-between mb-1">
                             <span class="text-[11px] font-medium text-slate-400">Líderes / Seguidores</span>
                             <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
@@ -176,7 +175,7 @@
                     </div>
 
                     <!-- Chaves Ativas -->
-                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-2.5 flex flex-col justify-between">
+                    <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between min-h-[90px]">
                         <div class="flex items-center justify-between mb-1">
                             <span class="text-[11px] font-medium text-slate-400">Chaves Ativas</span>
                             <svg class="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 0121 9z"></path></svg>
@@ -188,19 +187,19 @@
                 </div>
 
                 <!-- CHAVES DE API INDIVIDUAIS -->
-                <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-3">
-                    <div class="flex items-center justify-between mb-2">
+                <div class="bg-[#0f172a] border border-slate-800/80 rounded-xl p-3 sm:p-4">
+                    <div class="flex items-center justify-between mb-3">
                         <h3 class="text-xs font-bold text-white flex items-center gap-2">
                             <span>🔑</span> Chaves de API Individuais
                         </h3>
-                        <button id="test-all-keys" type="button" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-medium transition">
+                        <button id="test-all-keys" type="button" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-medium transition">
                             Testar Todas
                         </button>
                     </div>
 
-                    <div id="key-results" class="hidden mb-2 p-2 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs"></div>
+                    <div id="key-results" class="hidden mb-3 p-2 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs"></div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                         <!-- Slot 1 -->
                         <div class="bg-[#141e33] border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between">
                             <div class="flex items-center justify-between mb-1">
@@ -209,8 +208,8 @@
                             </div>
                             <input id="api-key-1" type="password" placeholder="Chave 01" class="w-full bg-[#090d16] border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 mb-2 outline-none focus:border-sky-500">
                             <div class="flex gap-1">
-                                <button type="button" onclick="testApiKey(1)" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
-                                <button type="button" data-save-key="1" class="flex-1 py-0.5 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
+                                <button type="button" onclick="testApiKey(1)" class="flex-1 py-1 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
+                                <button type="button" data-save-key="1" class="flex-1 py-1 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
                             </div>
                         </div>
 
@@ -222,8 +221,8 @@
                             </div>
                             <input id="api-key-2" type="password" placeholder="Chave 02" class="w-full bg-[#090d16] border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 mb-2 outline-none focus:border-sky-500">
                             <div class="flex gap-1">
-                                <button type="button" onclick="testApiKey(2)" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
-                                <button type="button" data-save-key="2" class="flex-1 py-0.5 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
+                                <button type="button" onclick="testApiKey(2)" class="flex-1 py-1 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
+                                <button type="button" data-save-key="2" class="flex-1 py-1 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
                             </div>
                         </div>
 
@@ -235,8 +234,8 @@
                             </div>
                             <input id="api-key-3" type="password" placeholder="Chave 03" class="w-full bg-[#090d16] border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 mb-2 outline-none focus:border-sky-500">
                             <div class="flex gap-1">
-                                <button type="button" onclick="testApiKey(3)" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
-                                <button type="button" data-save-key="3" class="flex-1 py-0.5 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
+                                <button type="button" onclick="testApiKey(3)" class="flex-1 py-1 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
+                                <button type="button" data-save-key="3" class="flex-1 py-1 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
                             </div>
                         </div>
 
@@ -248,8 +247,8 @@
                             </div>
                             <input id="api-key-4" type="password" placeholder="Chave 04" class="w-full bg-[#090d16] border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 mb-2 outline-none focus:border-sky-500">
                             <div class="flex gap-1">
-                                <button type="button" onclick="testApiKey(4)" class="flex-1 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
-                                <button type="button" data-save-key="4" class="flex-1 py-0.5 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
+                                <button type="button" onclick="testApiKey(4)" class="flex-1 py-1 rounded bg-slate-800 text-slate-300 text-[10px] font-medium hover:bg-slate-700 transition">Testar</button>
+                                <button type="button" data-save-key="4" class="flex-1 py-1 rounded bg-sky-600 text-white text-[10px] font-medium hover:bg-sky-500 transition">Salvar</button>
                             </div>
                         </div>
                     </div>
@@ -267,7 +266,7 @@
                             </div>
                             <span class="px-2 py-0.5 rounded bg-slate-800 text-[9px] font-medium text-slate-300">Tempo Real</span>
                         </div>
-                        <div class="h-80 w-full">
+                        <div class="h-64 sm:h-80 w-full">
                             <canvas id="marketChart"></canvas>
                         </div>
                     </div>
@@ -318,7 +317,7 @@
             </div>
 
             <!-- RODAPÉ SOCIAL -->
-            <footer class="mt-4 pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+            <footer class="mt-6 pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
                 <p>© 2026 NACIONAL_CENTRO_TECNICO — Todos os direitos reservados.</p>
                 
                 <div class="flex items-center gap-3">
